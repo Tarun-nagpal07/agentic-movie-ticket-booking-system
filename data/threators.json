@@ -1,0 +1,102 @@
+{
+  "theaters": {
+    "ahmedabad": [
+      {
+        "theater_id": "t1",
+        "name": "INOX SG Highway",
+        "city": "ahmedabad",
+        "address": "SG Highway, Bodakdev, Ahmedabad",
+        "screens": 10,
+        "amenities": ["imax", "dolby_atmos", "recliner", "food_court"],
+        "parking": true
+      },
+      {
+        "theater_id": "t2",
+        "name": "PVR Acropolis Mall",
+        "city": "ahmedabad",
+        "address": "Acropolis Mall, Vastrapur, Ahmedabad",
+        "screens": 8,
+        "amenities": ["4dx", "dolby_atmos", "recliner"],
+        "parking": true
+      },
+      {
+        "theater_id": "t3",
+        "name": "Cinepolis AlphaOne",
+        "city": "ahmedabad",
+        "address": "AlphaOne Mall, Vastrapur, Ahmedabad",
+        "screens": 6,
+        "amenities": ["standard", "food_court"],
+        "parking": true
+      }
+    ],
+    "mumbai": [
+      {
+        "theater_id": "t4",
+        "name": "PVR Juhu",
+        "city": "mumbai",
+        "address": "Juhu, Mumbai",
+        "screens": 8,
+        "amenities": ["imax", "dolby_atmos", "recliner"],
+        "parking": false
+      },
+      {
+        "theater_id": "t5",
+        "name": "Cinepolis Andheri",
+        "city": "mumbai",
+        "address": "Andheri West, Mumbai",
+        "screens": 6,
+        "amenities": ["standard", "dolby_atmos"],
+        "parking": true
+      },
+      {
+        "theater_id": "t6",
+        "name": "INOX Nariman Point",
+        "city": "mumbai",
+        "address": "Nariman Point, Mumbai",
+        "screens": 5,
+        "amenities": ["imax", "recliner", "food_court"],
+        "parking": false
+      }
+    ],
+    "delhi": [
+      {
+        "theater_id": "t7",
+        "name": "PVR Select Citywalk",
+        "city": "delhi",
+        "address": "Select Citywalk, Saket, Delhi",
+        "screens": 9,
+        "amenities": ["imax", "4dx", "dolby_atmos", "recliner"],
+        "parking": true
+      },
+      {
+        "theater_id": "t8",
+        "name": "Cinepolis DLF Promenade",
+        "city": "delhi",
+        "address": "DLF Promenade, Vasant Kunj, Delhi",
+        "screens": 7,
+        "amenities": ["standard", "dolby_atmos", "food_court"],
+        "parking": true
+      }
+    ],
+    "bangalore": [
+      {
+        "theater_id": "t9",
+        "name": "PVR Forum Mall",
+        "city": "bangalore",
+        "address": "Forum Mall, Koramangala, Bangalore",
+        "screens": 11,
+        "amenities": ["imax", "dolby_atmos", "recliner", "4dx"],
+        "parking": true
+      },
+      {
+        "theater_id": "t10",
+        "name": "INOX Garuda Mall",
+        "city": "bangalore",
+        "address": "Garuda Mall, MG Road, Bangalore",
+        "screens": 8,
+        "amenities": ["standard", "dolby_atmos", "food_court"],
+        "parking": true
+      }
+    ]
+  }
+}

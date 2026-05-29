@@ -1,0 +1,58 @@
+{
+    "bookings": [
+        {
+            "booking_id": "b1001",
+            "user_id": "u1",
+            "movie_id": "m1",
+            "show_id": "s101",
+            "theater_id": "t1",
+            "seats": [
+                "E1",
+                "E2"
+            ],
+            "seat_type": "recliner",
+            "num_tickets": 2,
+            "total_price": 900,
+            "payment_status": "paid",
+            "booking_status": "confirmed",
+            "booking_time": "2025-05-20T18:30:00",
+            "refund_status": null
+        },
+        {
+            "booking_id": "b1002",
+            "user_id": "u1",
+            "movie_id": "m5",
+            "show_id": "s102",
+            "theater_id": "t1",
+            "seats": [
+                "D3",
+                "D4"
+            ],
+            "seat_type": "premium",
+            "num_tickets": 2,
+            "total_price": 760,
+            "payment_status": "refunded",
+            "booking_status": "cancelled",
+            "booking_time": "2025-05-15T12:10:00",
+            "refund_status": "completed"
+        },
+        {
+            "booking_id": "b1003",
+            "user_id": "u2",
+            "movie_id": "m2",
+            "show_id": "s201",
+            "theater_id": "t2",
+            "seats": [
+                "C1",
+                "C2"
+            ],
+            "seat_type": "premium",
+            "num_tickets": 2,
+            "total_price": 1200,
+            "payment_status": "paid",
+            "booking_status": "confirmed",
+            "booking_time": "2025-05-25T20:00:00",
+            "refund_status": null
+        }
+    ]
+}

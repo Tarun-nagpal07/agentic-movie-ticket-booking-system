@@ -1,0 +1,84 @@
+{
+  "movies": [
+    {
+      "movie_id": "m1",
+      "title": "Interstellar",
+      "genre": ["sci-fi", "drama"],
+      "language": "English",
+      "duration_min": 169,
+      "rating": 8.7,
+      "cast": ["Matthew McConaughey", "Anne Hathaway"],
+      "description": "A team of explorers travel through a wormhole in space."
+    },
+    {
+      "movie_id": "m2",
+      "title": "Pathaan",
+      "genre": ["action", "thriller"],
+      "language": "Hindi",
+      "duration_min": 146,
+      "rating": 7.2,
+      "cast": ["Shah Rukh Khan", "Deepika Padukone"],
+      "description": "An exiled spy returns to battle a terrorist organisation."
+    },
+    {
+      "movie_id": "m3",
+      "title": "Kalki 2898 AD",
+      "genre": ["sci-fi", "action", "mythology"],
+      "language": "Telugu",
+      "duration_min": 181,
+      "rating": 7.8,
+      "cast": ["Prabhas", "Deepika Padukone", "Amitabh Bachchan"],
+      "description": "A futuristic mythological epic set in 2898 AD."
+    },
+    {
+      "movie_id": "m4",
+      "title": "Pushpa 2: The Rule",
+      "genre": ["action", "drama"],
+      "language": "Telugu",
+      "duration_min": 190,
+      "rating": 8.0,
+      "cast": ["Allu Arjun", "Rashmika Mandanna"],
+      "description": "Pushpa Raj expands his red sandalwood smuggling empire."
+    },
+    {
+      "movie_id": "m5",
+      "title": "Dune: Part Two",
+      "genre": ["sci-fi", "adventure"],
+      "language": "English",
+      "duration_min": 166,
+      "rating": 8.5,
+      "cast": ["Timothée Chalamet", "Zendaya"],
+      "description": "Paul Atreides unites with the Fremen to seek revenge."
+    },
+    {
+      "movie_id": "m6",
+      "title": "Animal",
+      "genre": ["action", "drama", "thriller"],
+      "language": "Hindi",
+      "duration_min": 201,
+      "rating": 7.5,
+      "cast": ["Ranbir Kapoor", "Anil Kapoor"],
+      "description": "A man's obsession with his father leads to a violent saga."
+    },
+    {
+      "movie_id": "m7",
+      "title": "The Dark Knight",
+      "genre": ["action", "crime", "thriller"],
+      "language": "English",
+      "duration_min": 152,
+      "rating": 9.0,
+      "cast": ["Christian Bale", "Heath Ledger"],
+      "description": "Batman faces the Joker, a criminal mastermind in Gotham."
+    },
+    {
+      "movie_id": "m8",
+      "title": "Stree 2",
+      "genre": ["horror", "comedy"],
+      "language": "Hindi",
+      "duration_min": 135,
+      "rating": 7.9,
+      "cast": ["Rajkummar Rao", "Shraddha Kapoor"],
+      "description": "The town of Chanderi faces a new supernatural threat."
+    }
+  ]
+}

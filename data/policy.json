@@ -1,0 +1,40 @@
+{
+    "policy_docs": [
+        {
+            "doc_id": "p1",
+            "title": "Ticket Cancellation Policy",
+            "category": "cancellation",
+            "content": "Tickets cancelled more than 2 hours before showtime are eligible for 80 percent refund. Tickets cancelled within 2 hours are non-refundable."
+        },
+        {
+            "doc_id": "p2",
+            "title": "Refund Processing Policy",
+            "category": "refund",
+            "content": "Refunds are processed within 5 to 7 business days to the original payment method."
+        },
+        {
+            "doc_id": "p3",
+            "title": "Seat Booking Rules",
+            "category": "booking",
+            "content": "Booked seats cannot be changed after payment confirmation. Users must verify seat selection before confirming payment."
+        },
+        {
+            "doc_id": "p4",
+            "title": "Food and Beverage Policy",
+            "category": "theater_rules",
+            "content": "Outside food and beverages are not allowed inside theater premises."
+        },
+        {
+            "doc_id": "p5",
+            "title": "Late Entry Policy",
+            "category": "entry_rules",
+            "content": "Late entry after 20 minutes of movie start time may be restricted depending on theater policy."
+        },
+        {
+            "doc_id": "p6",
+            "title": "3D Glasses Policy",
+            "category": "theater_rules",
+            "content": "3D glasses must be returned after the movie show ends. Damage charges may apply for lost glasses."
+        }
+    ]
+}

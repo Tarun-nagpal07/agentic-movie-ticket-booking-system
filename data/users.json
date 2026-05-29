@@ -1,0 +1,107 @@
+{
+    "users": [
+        {
+            "user_id": "u1",
+            "name": "Raj Patel",
+            "city": "ahmedabad",
+            "favorite_genres": [
+                "sci-fi",
+                "thriller"
+            ],
+            "preferred_languages": [
+                "English",
+                "Hindi"
+            ],
+            "preferred_theaters": [
+                "t1",
+                "t2"
+            ],
+            "preferred_seat_type": "recliner",
+            "favorite_formats": [
+                "imax",
+                "dolby"
+            ],
+            "booking_history": [
+                {
+                    "booking_id": "b1001",
+                    "movie_id": "m1",
+                    "show_id": "s101",
+                    "theater_id": "t1",
+                    "seats": [
+                        "E1",
+                        "E2"
+                    ],
+                    "booking_status": "confirmed",
+                    "booked_at": "2025-05-20T18:30:00"
+                },
+                {
+                    "booking_id": "b1002",
+                    "movie_id": "m5",
+                    "show_id": "s102",
+                    "theater_id": "t1",
+                    "seats": [
+                        "D3",
+                        "D4"
+                    ],
+                    "booking_status": "cancelled",
+                    "booked_at": "2025-05-15T12:10:00"
+                }
+            ]
+        },
+        {
+            "user_id": "u2",
+            "name": "Amit Sharma",
+            "city": "mumbai",
+            "favorite_genres": [
+                "action",
+                "drama"
+            ],
+            "preferred_languages": [
+                "Hindi"
+            ],
+            "preferred_theaters": [
+                "t4",
+                "t5"
+            ],
+            "preferred_seat_type": "premium",
+            "favorite_formats": [
+                "4dx"
+            ],
+            "booking_history": [
+                {
+                    "booking_id": "b1003",
+                    "movie_id": "m2",
+                    "show_id": "s201",
+                    "theater_id": "t2",
+                    "seats": [
+                        "C1",
+                        "C2"
+                    ],
+                    "booking_status": "confirmed",
+                    "booked_at": "2025-05-25T20:00:00"
+                }
+            ]
+        },
+        {
+            "user_id": "u3",
+            "name": "Sneha Reddy",
+            "city": "bangalore",
+            "favorite_genres": [
+                "comedy",
+                "horror"
+            ],
+            "preferred_languages": [
+                "Hindi",
+                "Telugu"
+            ],
+            "preferred_theaters": [
+                "t9"
+            ],
+            "preferred_seat_type": "standard",
+            "favorite_formats": [
+                "dolby"
+            ],
+            "booking_history": []
+        }
+    ]
+}
