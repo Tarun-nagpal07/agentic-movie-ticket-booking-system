@@ -6,8 +6,46 @@
         "name": "INOX SG Highway",
         "city": "ahmedabad",
         "address": "SG Highway, Bodakdev, Ahmedabad",
-        "screens": 10,
-        "amenities": ["imax", "dolby_atmos", "recliner", "food_court"],
+        "latitude": 23.0395,
+        "longitude": 72.5071,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 250
+          },
+          {
+            "screen_no": 2,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 180
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          },
+          {
+            "screen_no": 4,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 150
+          },
+          {
+            "screen_no": 5,
+            "name": "Recliner Lounge",
+            "format": "Dolby",
+            "capacity": 80
+          }
+        ],
+        "amenities": [
+          "imax",
+          "dolby_atmos",
+          "recliner",
+          "food_court"
+        ],
         "parking": true
       },
       {
@@ -15,8 +53,39 @@
         "name": "PVR Acropolis Mall",
         "city": "ahmedabad",
         "address": "Acropolis Mall, Vastrapur, Ahmedabad",
-        "screens": 8,
-        "amenities": ["4dx", "dolby_atmos", "recliner"],
+        "latitude": 23.0314,
+        "longitude": 72.5252,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "4DX Screen",
+            "format": "4DX",
+            "capacity": 120
+          },
+          {
+            "screen_no": 2,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 180
+          },
+          {
+            "screen_no": 3,
+            "name": "Recliner Hall",
+            "format": "standard",
+            "capacity": 90
+          },
+          {
+            "screen_no": 4,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          }
+        ],
+        "amenities": [
+          "4dx",
+          "dolby_atmos",
+          "recliner"
+        ],
         "parking": true
       },
       {
@@ -24,8 +93,32 @@
         "name": "Cinepolis AlphaOne",
         "city": "ahmedabad",
         "address": "AlphaOne Mall, Vastrapur, Ahmedabad",
-        "screens": 6,
-        "amenities": ["standard", "food_court"],
+        "latitude": 23.0285,
+        "longitude": 72.5311,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 3",
+            "format": "standard",
+            "capacity": 140
+          }
+        ],
+        "amenities": [
+          "standard",
+          "food_court"
+        ],
         "parking": true
       }
     ],
@@ -35,8 +128,39 @@
         "name": "PVR Juhu",
         "city": "mumbai",
         "address": "Juhu, Mumbai",
-        "screens": 8,
-        "amenities": ["imax", "dolby_atmos", "recliner"],
+        "latitude": 19.1075,
+        "longitude": 72.8263,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 300
+          },
+          {
+            "screen_no": 2,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 200
+          },
+          {
+            "screen_no": 3,
+            "name": "Recliner Hall",
+            "format": "Dolby",
+            "capacity": 90
+          },
+          {
+            "screen_no": 4,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          }
+        ],
+        "amenities": [
+          "imax",
+          "dolby_atmos",
+          "recliner"
+        ],
         "parking": false
       },
       {
@@ -44,8 +168,32 @@
         "name": "Cinepolis Andheri",
         "city": "mumbai",
         "address": "Andheri West, Mumbai",
-        "screens": 6,
-        "amenities": ["standard", "dolby_atmos"],
+        "latitude": 19.1364,
+        "longitude": 72.8296,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 180
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 160
+          }
+        ],
+        "amenities": [
+          "standard",
+          "dolby_atmos"
+        ],
         "parking": true
       },
       {
@@ -53,8 +201,33 @@
         "name": "INOX Nariman Point",
         "city": "mumbai",
         "address": "Nariman Point, Mumbai",
-        "screens": 5,
-        "amenities": ["imax", "recliner", "food_court"],
+        "latitude": 18.9256,
+        "longitude": 72.8242,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 280
+          },
+          {
+            "screen_no": 2,
+            "name": "Recliner Lounge",
+            "format": "standard",
+            "capacity": 80
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          }
+        ],
+        "amenities": [
+          "imax",
+          "recliner",
+          "food_court"
+        ],
         "parking": false
       }
     ],
@@ -64,8 +237,46 @@
         "name": "PVR Select Citywalk",
         "city": "delhi",
         "address": "Select Citywalk, Saket, Delhi",
-        "screens": 9,
-        "amenities": ["imax", "4dx", "dolby_atmos", "recliner"],
+        "latitude": 28.5274,
+        "longitude": 77.2190,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 300
+          },
+          {
+            "screen_no": 2,
+            "name": "4DX Screen",
+            "format": "4DX",
+            "capacity": 120
+          },
+          {
+            "screen_no": 3,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 200
+          },
+          {
+            "screen_no": 4,
+            "name": "Recliner Hall",
+            "format": "standard",
+            "capacity": 90
+          },
+          {
+            "screen_no": 5,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          }
+        ],
+        "amenities": [
+          "imax",
+          "4dx",
+          "dolby_atmos",
+          "recliner"
+        ],
         "parking": true
       },
       {
@@ -73,8 +284,39 @@
         "name": "Cinepolis DLF Promenade",
         "city": "delhi",
         "address": "DLF Promenade, Vasant Kunj, Delhi",
-        "screens": 7,
-        "amenities": ["standard", "dolby_atmos", "food_court"],
+        "latitude": 28.5214,
+        "longitude": 77.1580,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 180
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 4,
+            "name": "Standard 3",
+            "format": "standard",
+            "capacity": 140
+          }
+        ],
+        "amenities": [
+          "standard",
+          "dolby_atmos",
+          "food_court"
+        ],
         "parking": true
       }
     ],
@@ -84,8 +326,52 @@
         "name": "PVR Forum Mall",
         "city": "bangalore",
         "address": "Forum Mall, Koramangala, Bangalore",
-        "screens": 11,
-        "amenities": ["imax", "dolby_atmos", "recliner", "4dx"],
+        "latitude": 12.9352,
+        "longitude": 77.6245,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 300
+          },
+          {
+            "screen_no": 2,
+            "name": "4DX Screen",
+            "format": "4DX",
+            "capacity": 120
+          },
+          {
+            "screen_no": 3,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 200
+          },
+          {
+            "screen_no": 4,
+            "name": "Recliner Hall",
+            "format": "Dolby",
+            "capacity": 90
+          },
+          {
+            "screen_no": 5,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 150
+          },
+          {
+            "screen_no": 6,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 150
+          }
+        ],
+        "amenities": [
+          "imax",
+          "dolby_atmos",
+          "recliner",
+          "4dx"
+        ],
         "parking": true
       },
       {
@@ -93,8 +379,39 @@
         "name": "INOX Garuda Mall",
         "city": "bangalore",
         "address": "Garuda Mall, MG Road, Bangalore",
-        "screens": 8,
-        "amenities": ["standard", "dolby_atmos", "food_court"],
+        "latitude": 12.9762,
+        "longitude": 77.6033,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 200
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 3,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 160
+          },
+          {
+            "screen_no": 4,
+            "name": "Standard 3",
+            "format": "standard",
+            "capacity": 140
+          }
+        ],
+        "amenities": [
+          "standard",
+          "dolby_atmos",
+          "food_court"
+        ],
         "parking": true
       }
     ]

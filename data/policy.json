@@ -1,40 +1,64 @@
 {
-    "policy_docs": [
+    "policies": [
         {
-            "doc_id": "p1",
-            "title": "Ticket Cancellation Policy",
-            "category": "cancellation",
-            "content": "Tickets cancelled more than 2 hours before showtime are eligible for 80 percent refund. Tickets cancelled within 2 hours are non-refundable."
+            "chunk_id": "p1",
+            "topic": "cancellation",
+            "text": "Cancellations made more than 24 hours before the show time are eligible for a 90% refund. The remaining 10% is kept as a convenience fee."
         },
         {
-            "doc_id": "p2",
-            "title": "Refund Processing Policy",
-            "category": "refund",
-            "content": "Refunds are processed within 5 to 7 business days to the original payment method."
+            "chunk_id": "p2",
+            "topic": "cancellation",
+            "text": "Cancellations made between 2 and 24 hours before the show time are eligible for a 50% refund only."
         },
         {
-            "doc_id": "p3",
-            "title": "Seat Booking Rules",
-            "category": "booking",
-            "content": "Booked seats cannot be changed after payment confirmation. Users must verify seat selection before confirming payment."
+            "chunk_id": "p3",
+            "topic": "cancellation",
+            "text": "Cancellations made less than 2 hours before the show time are not eligible for any refund."
         },
         {
-            "doc_id": "p4",
-            "title": "Food and Beverage Policy",
-            "category": "theater_rules",
-            "content": "Outside food and beverages are not allowed inside theater premises."
+            "chunk_id": "p4",
+            "topic": "refund",
+            "text": "Approved refunds are processed within 5 to 7 business days back to the original payment method used at the time of booking."
         },
         {
-            "doc_id": "p5",
-            "title": "Late Entry Policy",
-            "category": "entry_rules",
-            "content": "Late entry after 20 minutes of movie start time may be restricted depending on theater policy."
+            "chunk_id": "p5",
+            "topic": "refund",
+            "text": "UPI and wallet payments are refunded within 2 business days. Credit and debit card refunds may take up to 7 business days depending on the bank."
         },
         {
-            "doc_id": "p6",
-            "title": "3D Glasses Policy",
-            "category": "theater_rules",
-            "content": "3D glasses must be returned after the movie show ends. Damage charges may apply for lost glasses."
+            "chunk_id": "p6",
+            "topic": "booking",
+            "text": "A maximum of 10 tickets can be booked per transaction. For group bookings above 10, please contact our support team."
+        },
+        {
+            "chunk_id": "p7",
+            "topic": "booking",
+            "text": "Tickets once booked cannot be transferred to another show or date. You must cancel and rebook separately."
+        },
+        {
+            "chunk_id": "p8",
+            "topic": "seat",
+            "text": "Seat selection is available up to 30 minutes before the show. After that, the system auto-assigns available seats."
+        },
+        {
+            "chunk_id": "p9",
+            "topic": "seat",
+            "text": "Recliner seats must be booked at least 1 hour before the show. Walk-in recliner bookings are not available at the counter."
+        },
+        {
+            "chunk_id": "p10",
+            "topic": "food",
+            "text": "Outside food and beverages are not permitted inside the screening halls. Food courts and in-hall ordering are available at select theaters."
+        },
+        {
+            "chunk_id": "p11",
+            "topic": "children",
+            "text": "Children below the age of 3 are allowed free entry without a seat. Children aged 3 and above require a full ticket."
+        },
+        {
+            "chunk_id": "p12",
+            "topic": "payment",
+            "text": "We accept UPI, credit cards, debit cards, net banking, and wallet payments. Cash payment is not accepted for online bookings."
         }
     ]
 }

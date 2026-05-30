@@ -1,107 +1,174 @@
 {
-    "users": [
-        {
+    "users": {
+        "u1": {
             "user_id": "u1",
-            "name": "Raj Patel",
+            "name": "Raj Mehta",
+            "email": "raj.mehta@gmail.com",
+            "phone": "9876543210",
+            "latitude": 23.0258,
+            "longitude": 72.5873,
             "city": "ahmedabad",
             "favorite_genres": [
                 "sci-fi",
                 "thriller"
-            ],
-            "preferred_languages": [
-                "English",
-                "Hindi"
             ],
             "preferred_theaters": [
                 "t1",
                 "t2"
             ],
             "preferred_seat_type": "recliner",
-            "favorite_formats": [
-                "imax",
-                "dolby"
-            ],
+            "preferred_format": "IMAX",
+            "language_pref": "English",
             "booking_history": [
                 {
-                    "booking_id": "b1001",
+                    "booking_id": "b001",
                     "movie_id": "m1",
-                    "show_id": "s101",
+                    "movie_title": "Interstellar",
                     "theater_id": "t1",
+                    "theater_name": "INOX SG Highway",
+                    "screen_no": 1,
+                    "show_id": "s101",
+                    "show_date": "2025-05-10",
+                    "show_time": "10:00",
                     "seats": [
-                        "E1",
-                        "E2"
+                        "E5",
+                        "E6"
                     ],
-                    "booking_status": "confirmed",
-                    "booked_at": "2025-05-20T18:30:00"
+                    "seat_type": "recliner",
+                    "num_tickets": 2,
+                    "total_price": 900,
+                    "status": "confirmed",
+                    "booked_at": "2025-05-08T14:22:00Z"
                 },
                 {
-                    "booking_id": "b1002",
+                    "booking_id": "b002",
                     "movie_id": "m5",
-                    "show_id": "s102",
+                    "movie_title": "Dune: Part Two",
                     "theater_id": "t1",
+                    "theater_name": "INOX SG Highway",
+                    "screen_no": 1,
+                    "show_id": "s108",
+                    "show_date": "2025-04-20",
+                    "show_time": "14:30",
                     "seats": [
-                        "D3",
-                        "D4"
+                        "E3",
+                        "E4"
                     ],
-                    "booking_status": "cancelled",
-                    "booked_at": "2025-05-15T12:10:00"
+                    "seat_type": "recliner",
+                    "num_tickets": 2,
+                    "total_price": 900,
+                    "status": "confirmed",
+                    "booked_at": "2025-04-18T10:10:00Z"
                 }
             ]
         },
-        {
+        "u2": {
             "user_id": "u2",
-            "name": "Amit Sharma",
+            "name": "Priya Shah",
+            "email": "priya.shah@gmail.com",
+            "phone": "9123456780",
+            "latitude": 19.1136,
+            "longitude": 72.8697,
             "city": "mumbai",
             "favorite_genres": [
-                "action",
+                "romance",
+                "comedy",
                 "drama"
-            ],
-            "preferred_languages": [
-                "Hindi"
             ],
             "preferred_theaters": [
                 "t4",
                 "t5"
             ],
             "preferred_seat_type": "premium",
-            "favorite_formats": [
-                "4dx"
-            ],
+            "preferred_format": "Dolby",
+            "language_pref": "Hindi",
             "booking_history": [
                 {
-                    "booking_id": "b1003",
-                    "movie_id": "m2",
-                    "show_id": "s201",
-                    "theater_id": "t2",
+                    "booking_id": "b003",
+                    "movie_id": "m8",
+                    "movie_title": "Stree 2",
+                    "theater_id": "t5",
+                    "theater_name": "Cinepolis Andheri",
+                    "screen_no": 1,
+                    "show_id": "s501",
+                    "show_date": "2025-05-15",
+                    "show_time": "18:00",
                     "seats": [
-                        "C1",
-                        "C2"
+                        "C3",
+                        "C4"
                     ],
-                    "booking_status": "confirmed",
-                    "booked_at": "2025-05-25T20:00:00"
+                    "seat_type": "premium",
+                    "num_tickets": 2,
+                    "total_price": 700,
+                    "status": "confirmed",
+                    "booked_at": "2025-05-13T09:00:00Z"
                 }
             ]
         },
-        {
+        "u3": {
             "user_id": "u3",
-            "name": "Sneha Reddy",
+            "name": "Arjun Nair",
+            "email": "arjun.nair@gmail.com",
+            "phone": "9988776655",
+            "latitude": 12.9716,
+            "longitude": 77.5946,
             "city": "bangalore",
             "favorite_genres": [
-                "comedy",
-                "horror"
-            ],
-            "preferred_languages": [
-                "Hindi",
-                "Telugu"
+                "action",
+                "sci-fi",
+                "thriller"
             ],
             "preferred_theaters": [
                 "t9"
             ],
             "preferred_seat_type": "standard",
-            "favorite_formats": [
-                "dolby"
-            ],
-            "booking_history": []
+            "preferred_format": "4DX",
+            "language_pref": "Telugu",
+            "booking_history": [
+                {
+                    "booking_id": "b004",
+                    "movie_id": "m3",
+                    "movie_title": "Kalki 2898 AD",
+                    "theater_id": "t9",
+                    "theater_name": "PVR Forum Mall",
+                    "screen_no": 2,
+                    "show_id": "s901",
+                    "show_date": "2025-05-01",
+                    "show_time": "11:00",
+                    "seats": [
+                        "B4",
+                        "B5"
+                    ],
+                    "seat_type": "standard",
+                    "num_tickets": 2,
+                    "total_price": 560,
+                    "status": "cancelled",
+                    "booked_at": "2025-04-29T16:45:00Z",
+                    "cancelled_at": "2025-04-30T10:00:00Z",
+                    "refund_amount": 504
+                },
+                {
+                    "booking_id": "b005",
+                    "movie_id": "m4",
+                    "movie_title": "Pushpa 2: The Rule",
+                    "theater_id": "t9",
+                    "theater_name": "PVR Forum Mall",
+                    "screen_no": 5,
+                    "show_id": "s902",
+                    "show_date": "2025-05-20",
+                    "show_time": "20:00",
+                    "seats": [
+                        "A2",
+                        "A3",
+                        "A4"
+                    ],
+                    "seat_type": "standard",
+                    "num_tickets": 3,
+                    "total_price": 750,
+                    "status": "confirmed",
+                    "booked_at": "2025-05-18T11:30:00Z"
+                }
+            ]
         }
-    ]
+    }
 }
