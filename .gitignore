@@ -1,10 +1,85 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Python environments
+.venv/
+venv/
+env/
+ENV/
+jython/
+pypy/
 
-# Virtual environments
+# Python artifacts
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment variables and secrets (CRITICAL for GenAI keys)
+.env
+.env.[a-zA-Z]*
+!.env.example
 .venv
+env.bak
+*.pem
+*.key
+*.secret
+
+# FastAPI / Uvicorn / Gunicorn configuration
+.pydantic_ai_cache/
+.fastapi_cache/
+htmlcov/
+.toml
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# GenAI / Vector DBs / Data pipelines
+# Local vector store data databases
+.chroma/
+chroma_db/
+faiss_index/
+.qdrant/
+*.db
+*.sqlite
+
+# Large Data & Model files (LLM weights, datasets)
+*.bin
+*.onnx
+*.pt
+*.pth
+*.pkl
+*.pickle
+*.h5
+*.tflite
+models/
+weights/
+datasets/
+data/*.csv
+data/*.jsonl
+
+# Logs and runtime files
+*.log
+gunicorn.errors
+uvicorn.errors
+
+# Editor and OS specific files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
