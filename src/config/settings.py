@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # AZURE_OPENAI_DEPLOYMENT_NAME: str
     # AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str
     # AZURE_OPENAI_API_VERSION: str
+    DEBUG: bool = Field(default=False)
 
     # REDIS_URL: str
     # QDRANT_URL: str

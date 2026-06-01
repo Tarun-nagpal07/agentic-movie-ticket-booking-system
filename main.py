@@ -12,3 +12,4 @@ def get_movies():
     with open("data/movies.json", "r") as file:
         movies = json.load(file)
     return movies
+
