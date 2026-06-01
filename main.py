@@ -9,6 +9,6 @@ def home():
 
 @app.get("/movies")
 def get_movies():
-    with open("data/movie.json", "r") as file:
+    with open("data/movies.json", "r") as file:
         movies = json.load(file)
     return movies
