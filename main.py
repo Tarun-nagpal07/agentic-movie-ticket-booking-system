@@ -13,3 +13,6 @@ def get_movies():
         movies = json.load(file)
     return movies
 
+
+from src.tools.booking_tools import get_theater_by_city
+print(get_theater_by_city("ahmedabad"))
