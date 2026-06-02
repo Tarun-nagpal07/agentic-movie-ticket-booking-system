@@ -33,8 +33,7 @@ class CancelRequest(BaseModel):
 
 class RefundResponse(BaseModel):
     refund_id: str
-    status: str
     amount: float
-    eta_days: int
 
-
+class GetBookingRequest(BaseModel):
+    booking_id: str

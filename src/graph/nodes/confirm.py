@@ -27,10 +27,14 @@ def confirm_node(state: dict) -> dict:
     showtimes_db = load_db(DBFile.SHOWTIMES)
     bookings_db  = load_db(DBFile.BOOKINGS)
 
-    draft["status"]   = "confirmed"
-    draft["booked_at"] = get_now()
+    confirmed_draft = {
+        **draft,
+        "status":    "confirmed",
+        "booked_at": get_now()
+    }
 
-    bookings_db["bookings"][draft["booking_id"]] = draft
+
+    bookings_db["bookings"][confirmed_draft["booking_id"]] = confirmed_draft
     save_db(DBFile.BOOKINGS, bookings_db)
 
     # flip seats
@@ -42,4 +46,4 @@ def confirm_node(state: dict) -> dict:
     save_db(DBFile.SHOWTIMES, showtimes_db)
 
     logger.info(f"booking {draft['booking_id']} confirmed")
-    return {**state, "confirmed": True, "booking_draft": draft}
+    return {**state, "confirmed": True, "booking_draft": confirmed_draft}

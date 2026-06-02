@@ -15,10 +15,11 @@ def get_seat_map(theater_id: str, movie_id: str,show_id: str) -> dict:
     Get seat map for a given showtime.
     theater_id and movie_id are required you can call other agent to get details.
     this tools list all seats with their status (available/booked) for a given showtime.
+    
     Args:
-        theater_id: ID of the theater
-        movie_id: ID of the movie
-        date: date in YYYY-MM-DD format
+        theater_id: ID of the theater e.g. "t1"
+        movie_id: ID of the movie e.g. "m1"
+        show_id: ID of the show e.g. "s101"
     """
     
     showtimes_db = load_db(DBFile.SHOWTIMES)
@@ -67,9 +68,12 @@ def get_seats_types_available(theater_id:str,movie_id:str,show_id:str,seat_type:
             recoverable=True
         )
 
-
-    seats_available = [s for s, t in show["seat_types"].items() if t in seat_type and show["seats"].get(s) == "available"]
-
+    seats_available = [
+        seat_id for seat_id, status in show["seats"].items()
+        if show["seat_types"].get(seat_id[0]) in seat_type   
+        and status == "available"
+    ]
+    
     logger.info(f"{len(seats_available)} seats available for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id} for seat types: {seat_type}")
     return {"status":"success","available_seats": seats_available}
 
@@ -102,7 +106,11 @@ def get_seats_available(theater_id:str,movie_id:str,show_id:str,seats:list[str])
         )
 
 
-    seats_available = [s for s, t in show["seats"].items() if t in seats and show["seats"].get(s) == "available"]
 
+    seats_available = [
+        s for s, status in show["seats"].items()
+        if s in seats and status == "available"
+    ]
+    
     logger.info(f"{len(seats_available)} seats available for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id} for seats: {seats}")
     return {"status":"success","available_seats": seats_available}
