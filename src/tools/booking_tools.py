@@ -2,16 +2,16 @@ from src.utils.logger import get_logger
 from src.utils.errors import handle_errors, ToolError,BookingError
 from src.db.json_store import load_db, save_db
 from src.config.constants import DBFile,SeatStatus
-from langchain_core.tools import tool
+from langchain.tools import tool, ToolRuntime
 from src.utils.date_utils import get_today, get_now, is_show_in_future
-from src.schemas.show import Theater, Movie, ShowTime
-
+from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request
+from src.schemas.booking import BookingRequest
 
 logger = get_logger(__name__)
 
-@tool("get_theater_by_city")
+@tool("get_theater_by_city",args_schema=theater_by_city)
 @handle_errors(error_class=ToolError)
-def get_theater_by_city(city: str) -> list[Theater]:
+def get_theater_by_city(city: str) -> dict:
     """
     Get all theaters in a given city.
     Use when user asks about theaters or movies available in a city.
@@ -21,7 +21,7 @@ def get_theater_by_city(city: str) -> list[Theater]:
     """
     db = load_db(DBFile.THEATERS)
 
-    theaters = db[DBFile.THEATERS].get(city.lower())
+    theaters = db["theaters"].get(city.lower())
 
     if theaters is None:
         raise ToolError(
@@ -33,7 +33,7 @@ def get_theater_by_city(city: str) -> list[Theater]:
     return {"status":"success","theaters":theaters}
 
 
-@tool("get_movies_now_showing",args_schema={"theater_ids": list[str], "date": str | None})
+@tool("get_movies_now_showing",args_schema=movies_now_showing)
 @handle_errors(error_class=ToolError)
 def get_movies_now_showing(theater_ids: list[str], date: str = None) -> dict:
     """
@@ -73,7 +73,7 @@ def get_movies_now_showing(theater_ids: list[str], date: str = None) -> dict:
     return {"status": "success", "date": date, "movies_by_theater": result}
 
 
-@tool("get_showtimes",args_schema={"movie_id": str, "theater_id": str, "date": str})
+@tool("get_showtimes",args_schema=showtimes_request)
 @handle_errors(error_class=ToolError)
 def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
     """
@@ -123,21 +123,20 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
     return {"status": "success", "shows": shows_on_date}
 
 
-
-@tool("book_tickets")
+@tool("book_tickets",args_schema=BookingRequest)
 @handle_errors(error_class=BookingError)
-def book_tickets(user_id: str, show_id: str, seats: list[str], num_tickets: int) -> dict:
+def book_tickets(show_id: str, seats: list[str], num_tickets: int, runtime: ToolRuntime) -> dict:
     """
-    Book tickets for a show. Confirms seat availability, creates booking record,
-    and updates seat status to booked.
-    Use only after user has confirmed the booking details.
+    Validates and prepares a booking draft.
+    Does NOT confirm the booking — confirmation happens separately.
 
     Args:
-        user_id: user ID e.g. "u1"
-        show_id: show ID e.g. "s101"
-        seats: list of seat IDs to book e.g. ["E5", "E6"]
-        num_tickets: number of tickets — must match length of seats
+        show_id: from get_showtimes result
+        seats: from recommend_seats result
+        num_tickets: must match len(seats)
     """
+    user_id = runtime.state["user_id"]
+
     if len(seats) != num_tickets:
         raise BookingError(
             message="Number of seats must match num_tickets.",
@@ -148,98 +147,51 @@ def book_tickets(user_id: str, show_id: str, seats: list[str], num_tickets: int)
     showtimes_db = load_db(DBFile.SHOWTIMES)
     bookings_db  = load_db(DBFile.BOOKINGS)
 
-    # find the show across all theaters and movies
-    show = None
-    theater_id = None
-    movie_id = None
-
+    # find show
+    show = theater_id = movie_id = None
     for tid, movies in showtimes_db["showtimes"].items():
         for mid, shows in movies.items():
             for s in shows:
                 if s["show_id"] == show_id:
-                    show = s
-                    theater_id = tid
-                    movie_id = mid
+                    show, theater_id, movie_id = s, tid, mid
                     break
 
     if not show:
-        raise BookingError(
-            message=f"Show '{show_id}' not found.",
-            code="SHOW_NOT_FOUND",
-            recoverable=True
-        )
+        raise BookingError(message=f"Show '{show_id}' not found.", code="SHOW_NOT_FOUND", recoverable=True)
 
-    # check show is in future
     if not is_show_in_future(show["date"], show["time"]):
-        raise BookingError(
-            message=f"Cannot book — show has already started or passed.",
-            code="SHOW_ALREADY_STARTED",
-            recoverable=False
-        )
+        raise BookingError(message="Show has already started or passed.", code="SHOW_ALREADY_STARTED", recoverable=False)
 
-    # check all seats are available
-    unavailable = [
-        seat for seat in seats
-        if show["seats"].get(seat) != SeatStatus.AVAILABLE
-    ]
+    unavailable = [s for s in seats if show["seats"].get(s) != SeatStatus.AVAILABLE]
     if unavailable:
-        raise BookingError(
-            message=f"Seats {unavailable} are not available.",
-            code="SEATS_NOT_AVAILABLE",
-            recoverable=True
-        )
+        raise BookingError(message=f"Seats {unavailable} are not available.", code="SEATS_NOT_AVAILABLE", recoverable=True)
 
-    # calculate total price
+    # build draft — do NOT write to JSON yet
+    booking_id  = f"b_{len(bookings_db['bookings']) + 1:03d}"
     total_price = show["price"] * num_tickets
 
-    # generate booking id
-    booking_id = f"b_{len(bookings_db['bookings']) + 1:03d}"
-    booked_at  = get_now()
-
-    # build booking record
-    new_booking = {
-        "booking_id":   booking_id,
-        "user_id":      user_id,
-        "movie_id":     movie_id,
-        "theater_id":   theater_id,
-        "screen_no":    show["screen_no"],
-        "screen_name":  show["screen_name"],
-        "show_id":      show_id,
-        "show_date":    show["date"],
-        "show_time":    show["time"],
-        "format":       show["format"],
-        "seats":        seats,
-        "num_tickets":  num_tickets,
+    draft = {
+        "booking_id":       booking_id,
+        "user_id":          user_id,
+        "movie_id":         movie_id,
+        "theater_id":       theater_id,
+        "screen_no":        show["screen_no"],
+        "screen_name":      show["screen_name"],
+        "show_id":          show_id,
+        "show_date":        show["date"],
+        "show_time":        show["time"],
+        "format":           show["format"],
+        "seats":            seats,
+        "num_tickets":      num_tickets,
         "price_per_ticket": show["price"],
-        "total_price":  total_price,
-        "status":       "confirmed",
-        "booked_at":    booked_at,
-        "refund_amount": None,
-        "cancelled_at":  None
+        "total_price":      total_price,
+        "status":           "pending",
+        "booked_at":        get_now(),
+        "refund_amount":    None,
+        "cancelled_at":     None
     }
 
-    # write booking
-    bookings_db["bookings"][booking_id] = new_booking
-    save_db(DBFile.BOOKINGS, bookings_db)
+    logger.info(f"booking draft prepared for show {show_id} user {user_id}")
 
-    # flip seats to booked in showtimes
-    for seat in seats:
-        showtimes_db["showtimes"][theater_id][movie_id][
-            next(i for i, s in enumerate(
-                showtimes_db["showtimes"][theater_id][movie_id]
-            ) if s["show_id"] == show_id)
-        ]["seats"][seat] = SeatStatus.BOOKED
-
-    save_db(DBFile.SHOWTIMES, showtimes_db)
-
-    logger.info(f"booking {booking_id} confirmed for user {user_id}")
-    return {
-        "status":       "success",
-        "booking_id":   booking_id,
-        "total_price":  total_price,
-        "seats":        seats,
-        "show_date":    show["date"],
-        "show_time":    show["time"],
-        "screen_name":  show["screen_name"],
-        "booked_at":    booked_at
-    }
+    # return draft into state — graph confirm node handles the rest
+    return {"status": "draft", "booking_draft": draft}

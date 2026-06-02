@@ -38,3 +38,17 @@ class ShowTime(BaseModel):
     price: int
     seats: dict[str, SeatStatus]
     seat_types: dict[str, SeatType]
+
+
+class theater_by_city(BaseModel):
+    city : str
+
+
+class movies_now_showing(BaseModel):
+    theater_ids : list[str]
+    date : str | None 
+
+class showtimes_request(BaseModel):
+    movie_id: str
+    theater_id: str
+    date: str

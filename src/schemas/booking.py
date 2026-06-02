@@ -2,7 +2,6 @@ from pydantic import BaseModel, field_validator
 from src.config.constants import BookingStatus, SeatType, Limits
 
 class BookingRequest(BaseModel):
-    user_id : str
     show_id : str
     seats : list[str]
     num_tickets : int
