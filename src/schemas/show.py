@@ -52,3 +52,25 @@ class showtimes_request(BaseModel):
     movie_id: str
     theater_id: str
     date: str
+
+
+class seat_map_request(BaseModel):
+    movie_id: str
+    theater_id: str
+    show_id: str
+
+class seats_types_available(BaseModel):
+    movie_id: str
+    theater_id: str
+    show_id: str
+    seat_type: list[str]
+
+class seats_available(BaseModel):
+    movie_id:str
+    theater_id:str
+    show_id:str
+    seats: list[str]
+
+class current_movies(BaseModel):
+    city: str
+    date: str

@@ -4,7 +4,7 @@ from src.db.json_store import load_db, save_db
 from src.config.constants import DBFile,SeatStatus
 from langchain.tools import tool, ToolRuntime
 from src.utils.date_utils import get_today, get_now, is_show_in_future
-from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request
+from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request, current_movies
 from src.schemas.booking import BookingRequest
 
 logger = get_logger(__name__)
@@ -33,12 +33,78 @@ def get_theater_by_city(city: str) -> dict:
     return {"status":"success","theaters":theaters}
 
 
+@tool("get_movies", args_schema=current_movies)
+@handle_errors(error_class=ToolError)
+def get_movies_by_city(city: str, date: str | None = None) -> dict:
+    """
+    Get all movies currently showing in a city on a given date.
+
+    Args:
+        city: city name — ahmedabad, mumbai, delhi, bangalore
+        date: date in YYYY-MM-DD format. Defaults to today if not provided.
+    """
+    date = date or get_today()
+
+    theaters_db = load_db(DBFile.THEATERS)
+    showtimes_db = load_db(DBFile.SHOWTIMES)
+    movies_db = load_db(DBFile.MOVIES)
+
+    theaters = theaters_db["theaters"].get(city.lower())
+
+    if not theaters:
+        raise ToolError(
+            message=f"No theaters found in '{city}'.",
+            code="CITY_NOT_FOUND",
+            recoverable=True
+        )
+
+    movies_lookup = {
+        movie["movie_id"]: movie
+        for movie in movies_db["movies"]
+    }
+
+    movies_found = {}
+
+    for theater in theaters:
+        theater_id = theater["theater_id"]
+
+        theater_shows = showtimes_db["showtimes"].get(theater_id, {})
+
+        for movie_id, shows in theater_shows.items():
+
+            has_show_on_date = any(
+                show["date"] == date
+                for show in shows
+            )
+
+            if has_show_on_date and movie_id in movies_lookup:
+                movies_found[movie_id] = movies_lookup[movie_id]
+
+    if not movies_found:
+        raise ToolError(
+            message=f"No movies showing in {city} on {date}.",
+            code="NO_MOVIES_FOUND",
+            recoverable=True
+        )
+
+    logger.info(
+        f"found {len(movies_found)} movies in {city} on {date}"
+    )
+
+    return {
+        "status": "success",
+        "city": city,
+        "date": date,
+        "movies": list(movies_found.values())
+    }
+
+
 @tool("get_movies_now_showing",args_schema=movies_now_showing)
 @handle_errors(error_class=ToolError)
-def get_movies_now_showing(theater_ids: list[str], date: str = None) -> dict:
+def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
     """
     Get all movies currently showing across given theaters on a date.
-    Use after get_theaters_by_city to find what movies are playing.
+    Use after get_theaters_by_city to find what movies are playing on particular theaters.
 
     Args:
         theater_ids: list of theater IDs e.g. ["t1", "t2"]
@@ -71,7 +137,6 @@ def get_movies_now_showing(theater_ids: list[str], date: str = None) -> dict:
 
     logger.info(f"found movies for {len(result)} theaters on {date}")
     return {"status": "success", "date": date, "movies_by_theater": result}
-
 
 @tool("get_showtimes",args_schema=showtimes_request)
 @handle_errors(error_class=ToolError)
