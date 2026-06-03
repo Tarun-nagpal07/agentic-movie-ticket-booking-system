@@ -1,12 +1,112 @@
-from typing import TypedDict
-# from src.config.constants.intents import Intent
+from typing import TypedDict, Annotated
+import operator
 
 class BookingState(TypedDict):
-    messages : list[str]
-    user_id : str
-    intent : str
-    city : str | None
-    search_results : list | None
-    booking_draft : dict | None
-    confirmed : bool | None
-    error_message : str | None
+    """
+    Top-level graph state. Every node in the parent graph
+    reads/writes to this. Subgraph states sync overlapping keys.
+    """
+    messages: Annotated[list, operator.add]  # LangGraph message list (appends)
+    user_id: str
+    memory: dict                              # user prefs from Redis
+
+
+    intent: str                               # classified intent (e.g. "book_tickets")
+    next_agent: str | None                    # routing target (e.g. "booking", "recommendation")
+
+
+    booking_draft: dict | None                # from booking agent → confirm node
+    cancel_draft: dict | None                 # from cancellation agent → cancel_confirm node
+
+
+    confirmed: bool | None                    # True/False after human-in-the-loop
+
+    error_message: str | None
+
+
+class BookingAgentState(TypedDict):
+    """
+    Subgraph state for the booking agent.
+    Handles: search theaters → search movies → get showtimes → book tickets.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+
+    city: str | None                          # detected/extracted city
+    search_results: list | None               # theaters or movies found
+    selected_show: dict | None                # chosen showtime details
+
+    booking_draft: dict | None                # draft for confirmation
+
+
+
+class RecommendationAgentState(TypedDict):
+    """
+    Subgraph state for the recommendation agent.
+    Handles: get preferences → recommend by genre/history → suggest theaters.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+    memory: dict
+
+    recommendations: list | None              # scored movie recommendations
+    suggested_theaters: list | None           # theaters for top pick
+
+
+class SeatAgentState(TypedDict):
+    """
+    Subgraph state for the seat selection agent.
+    Handles: get seat map → filter by type → check availability.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+
+    seat_map: dict | None                     # full seat layout with status
+    available_seats: list | None              # filtered available seats
+
+
+
+class PolicyAgentState(TypedDict):
+    """
+    Subgraph state for the policy agent.
+    Handles: RAG retrieval over policy.json → answer FAQ questions.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+
+    retrieved_chunks: list | None             # top-K policy chunks from RAG
+    policy_answer: str | None                 # formatted answer to user
+
+
+class CancellationAgentState(TypedDict):
+    """
+    Subgraph state for the cancellation agent.
+    Handles: find booking → calculate refund → prepare cancellation draft.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+
+    cancel_draft: dict | None                 # draft for cancel confirmation
+
+
+
+class HistoryAgentState(TypedDict):
+    """
+    Subgraph state for the history agent.
+    Handles: get booking history, last booking, filter by status.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+
+class MemoryAgentState(TypedDict):
+    """
+    Subgraph state for the memory agent.
+    Runs after confirmations — updates user prefs in Redis.
+    """
+    messages: Annotated[list, operator.add]
+    user_id: str
+    memory: dict
+
+    booking_draft: dict | None
+    cancel_draft: dict | None
+    confirmed: bool | None
