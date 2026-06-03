@@ -5,7 +5,7 @@ from src.utils.errors import handle_errors, ToolError
 from src.utils.date_utils import get_today
 from src.utils.distance import nearest_theaters
 from src.utils.logger import get_logger
-from src.schemas.booking import (
+from src.schemas.show import (
     RecommendMoviesRequest,
     RecommendTheatersRequest
 )

@@ -74,3 +74,14 @@ class seats_available(BaseModel):
 class current_movies(BaseModel):
     city: str
     date: str
+
+class RecommendMoviesRequest(BaseModel):
+    genres: list[str]
+    city: str
+    language: str | None = None
+    limit: int | None 
+
+class RecommendTheatersRequest(BaseModel):
+    movie_id: str
+    city: str
+
