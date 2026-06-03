@@ -37,3 +37,6 @@ class RefundResponse(BaseModel):
 
 class GetBookingRequest(BaseModel):
     booking_id: str
+
+class GetBookingsByStatusRequest(BaseModel):
+    status : str
