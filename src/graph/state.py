@@ -10,3 +10,4 @@ class BookingState(TypedDict):
     booking_draft : dict | None
     confirmed : bool | None
     error_message : str | None
+    memory : dict 

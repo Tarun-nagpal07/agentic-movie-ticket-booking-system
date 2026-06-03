@@ -14,7 +14,11 @@ def get_movies():
     return movies
 
 
+from src.memory.long_term import redis_client
 
+print(redis_client.ping())          
+redis_client.set("test", "hello")
+print(redis_client.get("test"))     
 # from dotenv import load_dotenv
 # import os
 # from langchain.agents import create_agent
