@@ -14,11 +14,6 @@ def get_movies():
     return movies
 
 
-from src.memory.long_term import redis_client
-
-print(redis_client.ping())          
-redis_client.set("test", "hello")
-print(redis_client.get("test"))     
 # from dotenv import load_dotenv
 # import os
 # from langchain.agents import create_agent
@@ -86,6 +81,5 @@ print(redis_client.get("test"))
 # 7. For unrelated questions, politely refuse and redirect the conversation toward movie ticket booking.
 # """
 # )
-
 
 

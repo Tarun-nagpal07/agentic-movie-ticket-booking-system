@@ -1,9 +1,9 @@
 import json
 import redis
+from redis.exceptions import RedisError
 from src.config.settings import settings
 from src.config.constants import RedisPrefix
 from src.utils.logger import get_logger
-from src.utils.errors import MemoryError, handle_errors
 
 
 logger = get_logger(__name__)
@@ -18,43 +18,65 @@ redis_client = redis.Redis.from_url(
 def _user_key(user_id:str) -> str:
     return f"{RedisPrefix.USER}{user_id}"
 
-@handle_errors(error_class=MemoryError)
 def get_user_memory(user_id: str)-> dict | None:
     """
     Read user long-term memory from Redis.
     Returns None if user not found - caller decides fallback.
     """
-    raw = redis_client.get(_user_key(user_id))
+    try:
+        raw = redis_client.get(_user_key(user_id))
+    except RedisError as e:
+        logger.warning(
+            "Redis unavailable while loading long-term memory for user %s: %s",
+            user_id,
+            e,
+        )
+        return None
 
     if not raw:
-        logger.warning(f"no long-term memory found for user{user_id}")
+        logger.warning(f"no long-term memory found for user {user_id}")
         return None
     
-    logger.info(f"long-term memory loaded for user{user_id}")
-    return json.loads(raw)
+    logger.info(f"long-term memory loaded for user {user_id}")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.warning("Invalid long-term memory JSON for user %s: %s", user_id, e)
+        return None
 
 
-@handle_errors(error_class=MemoryError)
 def save_user_memory(user_id: str, data: dict) -> None:
     """
     Write updated user memory to Redis.
     No TTL — long-term memory persists forever.
     """
-    redis_client.set(_user_key(user_id), json.dumps(data))
-    logger.info(f"long-term memory saved for user {user_id}")
+    try:
+        redis_client.set(_user_key(user_id), json.dumps(data))
+        logger.info(f"long-term memory saved for user {user_id}")
+    except RedisError as e:
+        logger.warning(
+            "Redis unavailable while saving long-term memory for user %s: %s",
+            user_id,
+            e,
+        )
 
 
-@handle_errors(error_class=MemoryError)
 def delete_user_memory(user_id: str) -> None:
     """
     Delete user memory from Redis.
     Only used for testing or user data deletion.
     """
-    redis_client.delete(_user_key(user_id))
-    logger.info(f"long-term memory deleted for user {user_id}")
+    try:
+        redis_client.delete(_user_key(user_id))
+        logger.info(f"long-term memory deleted for user {user_id}")
+    except RedisError as e:
+        logger.warning(
+            "Redis unavailable while deleting long-term memory for user %s: %s",
+            user_id,
+            e,
+        )
 
 
-@handle_errors(error_class=MemoryError)
 def update_user_memory(user_id: str, updates: dict) -> None:
     """
     Partial update — merges updates into existing memory.
@@ -79,5 +101,12 @@ def update_user_memory(user_id: str, updates: dict) -> None:
         else:
             existing[key] = value
 
-    redis_client.set(_user_key(user_id), json.dumps(existing))
-    logger.info(f"long-term memory updated for user {user_id}: fields {list(updates.keys())}")
+    try:
+        redis_client.set(_user_key(user_id), json.dumps(existing))
+        logger.info(f"long-term memory updated for user {user_id}: fields {list(updates.keys())}")
+    except RedisError as e:
+        logger.warning(
+            "Redis unavailable while updating long-term memory for user %s: %s",
+            user_id,
+            e,
+        )
