@@ -1,85 +1,194 @@
-from fastapi import FastAPI
 import json
+import logging
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from langchain_core.messages import HumanMessage
+from langgraph.types import Command
+from src.graph.graph import get_graph
+from src.utils.logger import get_logger
 
-app = FastAPI()
+# Initialize logger
+logger = get_logger("fastapi_app")
+
+app = FastAPI(title="Movie Ticket Booking Chat API")
+
+# Initialize parent LangGraph compiled graph
+graph = get_graph()
+
+
+class ChatRequest(BaseModel):
+    user_id: str
+    thread_id: str
+    message: str
+
+
+class ConfirmRequest(BaseModel):
+    user_id: str
+    thread_id: str
+    decision: str  # "Approve" or "Reject"
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception in {request.url.path}: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An internal server error occurred.", "error": str(exc)},
+    )
+
 
 @app.get("/")
 def home():
-    return {"message": "Hello, World!"}
+    return {"message": "Movie Booking Assistant Chat API is running."}
+
 
 @app.get("/movies")
 def get_movies():
-    with open("data/movies.json", "r") as file:
-        movies = json.load(file)
-    return movies
+    try:
+        with open("data/movies.json", "r", encoding="utf-8") as file:
+            movies = json.load(file)
+        return movies
+    except Exception as e:
+        logger.error(f"Failed to read movies.json: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load movies data."
+        )
 
 
-# from dotenv import load_dotenv
-# import os
-# from langchain.agents import create_agent
-# from langchain.chat_models import init_chat_model
-# from src.config.settings import settings
-# from src.tools.seat_tools import get_seat_map, get_seats_available, get_seats_types_available
-# load_dotenv()
+def format_messages(messages):
+    formatted = []
+    for m in messages:
+        # Determine role
+        if m.type == "human":
+            role = "user"
+        elif m.type == "ai":
+            role = "assistant"
+        else:
+            role = m.type  # e.g. "tool"
 
-# model = init_chat_model(
-#     model=settings.LLM_MODEL,
-#     api_key = settings.API_KEY,
-#     base_url= settings.BASE_URL
-# )
-
-
-# agent = create_agent(
-#     model=model,
-#     tools=[get_seats_types_available, get_seat_map,get_seats_available],
-#     system_prompt = """
-# You are a movie ticket booking assistant.
-# now lets 
-# city : "ahmedabad"
-# date : "2025-06-01"
-# theater_id : "t1:
-# movie_id:"m1"
-# show_id:"s101"
-# seat_types:"E"
-
-# Rules:
-# 1. Always use tools to answer questions about theaters, movies, and showtimes.
-# 2. Use information from the conversation history before asking follow-up questions.
-# 3. If the user already mentioned a city earlier in the conversation, do not ask for it again.
-# 4. If the user answers a previous question (for example, "Ahmedabad"), treat it as the missing information requested earlier and continue the task.
-# 5. When enough information is available, call the appropriate tool immediately.
-# 6. Only answer questions related to movie ticket booking.
-# 7. For unrelated questions, politely refuse and redirect the conversation toward movie ticket booking.
-# """
-# )
-
-# result = agent.invoke({"message" : [{"role":"user","content":"my user id is u1,give me seats map?"}]})
-# print(result)
-
-# booking
-
-# agent = create_agent(
-#     model=model,
-#     tools=[get_theater_by_city, get_movies_now_showing, get_showtimes ],
-#     system_prompt = """
-# You are a movie ticket booking assistant.
-# now lets 
-# city : "ahmedabad"
-# date : "2025-06-01"
-# You have access to the following tools:
-# - get_theater_by_city
-# - get_movies_now_showing
-# - get_showtimes
-
-# Rules:
-# 1. Always use tools to answer questions about theaters, movies, and showtimes.
-# 2. Use information from the conversation history before asking follow-up questions.
-# 3. If the user already mentioned a city earlier in the conversation, do not ask for it again.
-# 4. If the user answers a previous question (for example, "Ahmedabad"), treat it as the missing information requested earlier and continue the task.
-# 5. When enough information is available, call the appropriate tool immediately.
-# 6. Only answer questions related to movie ticket booking.
-# 7. For unrelated questions, politely refuse and redirect the conversation toward movie ticket booking.
-# """
-# )
+        formatted.append({
+            "role": role,
+            "content": getattr(m, "content", str(m))
+        })
+    return formatted
 
 
+def get_active_interrupt(snapshot):
+    if snapshot.tasks:
+        for task in snapshot.tasks:
+            if task.interrupts:
+                return task.interrupts[0].value
+    return None
+
+
+@app.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    try:
+        logger.info(f"Chat request received: user={request.user_id}, thread={request.thread_id}, msg='{request.message[:40]}'")
+
+        config = {
+            "configurable": {
+                "thread_id": request.thread_id,
+                "user_id": request.user_id
+            }
+        }
+
+        # Invoke the graph with user_id and the new user message
+        graph.invoke(
+            {
+                "messages": [HumanMessage(content=request.message)],
+                "user_id": request.user_id,
+                "thread_id": request.thread_id
+            },
+            config
+        )
+
+        # Retrieve current snapshot after invocation (either completed or paused on interrupt)
+        snapshot = graph.get_state(config)
+        interrupt_info = get_active_interrupt(snapshot)
+
+        formatted_msgs = format_messages(snapshot.values.get("messages", []))
+
+        if interrupt_info:
+            logger.info(f"Graph paused at interrupt: {interrupt_info.get('message')}")
+            return {
+                "status": "requires_confirmation",
+                "interrupt": interrupt_info,
+                "messages": formatted_msgs
+            }
+
+        logger.info("Graph execution completed successfully")
+        return {
+            "status": "success",
+            "messages": formatted_msgs
+        }
+
+    except Exception as e:
+        logger.error(f"Error during chat processing: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing chat turn: {str(e)}"
+        )
+
+
+@app.post("/chat/confirm")
+async def confirm_endpoint(request: ConfirmRequest):
+    try:
+        logger.info(f"Confirm request received: user={request.user_id}, thread={request.thread_id}, decision={request.decision}")
+
+        config = {
+            "configurable": {
+                "thread_id": request.thread_id,
+                "user_id": request.user_id
+            }
+        }
+
+        snapshot = graph.get_state(config)
+        interrupt_info = get_active_interrupt(snapshot)
+
+        if not interrupt_info:
+            logger.warning("No active interrupt found to confirm")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="There is no active confirmation pending for this conversation thread."
+            )
+
+        if request.decision not in ["Approve", "Reject"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Decision must be either 'Approve' or 'Reject'."
+            )
+
+        # Resume graph execution with the decision
+        graph.invoke(Command(resume=request.decision), config)
+
+        # Retrieve updated snapshot after resumption
+        new_snapshot = graph.get_state(config)
+        new_interrupt_info = get_active_interrupt(new_snapshot)
+
+        formatted_msgs = format_messages(new_snapshot.values.get("messages", []))
+
+        if new_interrupt_info:
+            logger.info(f"Graph paused at subsequent interrupt: {new_interrupt_info.get('message')}")
+            return {
+                "status": "requires_confirmation",
+                "interrupt": new_interrupt_info,
+                "messages": formatted_msgs
+            }
+
+        logger.info("Graph execution completed successfully after confirmation")
+        return {
+            "status": "success",
+            "messages": formatted_msgs
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error during confirmation processing: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing confirmation turn: {str(e)}"
+        )

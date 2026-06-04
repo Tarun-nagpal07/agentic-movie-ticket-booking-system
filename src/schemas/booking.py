@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from src.config.constants import BookingStatus, SeatType, Limits
 
 class BookingRequest(BaseModel):
@@ -12,11 +12,11 @@ class BookingRequest(BaseModel):
             raise ValueError(f'Number of tickets must be between 1 and {Limits.MAX_TICKETS_PER_BOOKING}')
         return v
     
-    @field_validator('seats')
-    def seats_match_tickets(cls,v,info):
-        if len(v) != info.data.get("num_tickets"):
+    @model_validator(mode='after')
+    def seats_match_tickets(self):
+        if len(self.seats) != self.num_tickets:
             raise ValueError('Number of seats must match number of tickets')
-        return v
+        return self
     
 class BookingResponse(BaseModel):
     booking_id : str

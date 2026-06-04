@@ -10,7 +10,8 @@ def get_checkpointer() -> RedisSaver:
     LangGraph uses this to save and restore graph state per thread_id.
     Session TTL is handled by RedisSaver internally.
     """
-    checkpointer = RedisSaver.from_conn_string(settings.REDIS_URL)
-    logger.info("Redis checkpointer initialized")
+    checkpointer = RedisSaver(redis_url=settings.REDIS_URL)
+    checkpointer.setup()
+    logger.info("Redis checkpointer initialized and indexes setup")
     return checkpointer
 

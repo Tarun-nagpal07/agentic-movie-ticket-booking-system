@@ -45,25 +45,38 @@ booking_react_agent = create_agent(
         get_showtimes,
         book_tickets
     ],
-    state_modifier=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT,
+    debug=True
 )
 
 
 def booking_node(state: BookingAgentState) -> BookingAgentState:
     logger.info(f"booking agent called — user: {state.get('user_id')}, city: {state.get('city')}")
 
-    result = booking_react_agent.invoke(state)
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    agent_state = {**state, "messages": input_messages}
+
+    result = booking_react_agent.invoke(agent_state)
 
     # extract booking_draft from tool messages if present
     booking_draft = state.get("booking_draft")
     for msg in reversed(result["messages"]):
         content = getattr(msg, "content", None)
+        if isinstance(content, str):
+            import json
+            try:
+                content = json.loads(content)
+            except Exception:
+                pass
         if isinstance(content, dict) and content.get("status") == "draft":
             booking_draft = content.get("booking_draft")
             break
 
     return {
         **state,
-        "messages":     result["messages"],
+        "messages":     result["messages"][len(input_messages):],
         "booking_draft": booking_draft
     }

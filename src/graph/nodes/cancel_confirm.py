@@ -11,7 +11,7 @@ def cancel_confirm_node(state: dict) -> dict:
     cancel_draft = state.get("cancel_draft")
 
     if not cancel_draft:
-        return state
+        return {}
 
     # pause — show user what they're cancelling and refund amount
     decision = interrupt({
@@ -23,7 +23,7 @@ def cancel_confirm_node(state: dict) -> dict:
 
     if decision != "Approve":
         logger.info(f"cancellation rejected by user for booking {cancel_draft['booking_id']}")
-        return {**state, "cancel_draft": None, "confirmed": False}
+        return {"cancel_draft": None, "confirmed": False}
 
     bookings_db  = load_db(DBFile.BOOKINGS)
     showtimes_db = load_db(DBFile.SHOWTIMES)
@@ -51,7 +51,6 @@ def cancel_confirm_node(state: dict) -> dict:
 
     logger.info(f"booking {booking_id} cancelled — refund: {cancel_draft['refund_amount']}")
     return {
-        **state,
         "confirmed":    True,
         "cancel_draft": {
             **cancel_draft,

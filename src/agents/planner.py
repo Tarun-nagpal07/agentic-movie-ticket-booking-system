@@ -1,3 +1,4 @@
+from langchain_core.messages import AIMessage
 from src.agents.llm import get_llm
 from src.graph.state import BookingState
 from src.schemas.planner import PlannerResponse
@@ -64,8 +65,8 @@ def planner_node(state: BookingState) -> BookingState:
     formatted_msgs = []
     for m in messages:
         content = getattr(m, "content", None)
-        msg_type = getattr(m, "type", "user")       # "human" | "ai" | "tool"
-        if isinstance(content, str):
+        msg_type = getattr(m, "type", None)
+        if msg_type in ("human", "ai") and isinstance(content, str):
             role = "user" if msg_type == "human" else "assistant"
             formatted_msgs.append({"role": role, "content": content})
 
@@ -78,11 +79,32 @@ def planner_node(state: BookingState) -> BookingState:
 
     logger.info(f"planner → intent: {response.intent}, next_agent: {next_agent}, city: {response.city}")
 
-    return {
-        **state,
+    res = {
         "intent":      response.intent,
         "next_agent":  next_agent,
         "city":        response.city or memory.get("city"),
         "movie_title": response.movie_title,
         "date":        '2025-06-01',
     }
+
+    if response.intent == Intent.UNKNOWN or next_agent == "unknown":
+        # Extract the last human message content for context
+        user_message_content = ""
+        for m in reversed(messages):
+            if getattr(m, "type", None) == "human":
+                user_message_content = getattr(m, "content", "")
+                break
+
+        refusal_prompt = f"""You are a helpful and polite movie ticket booking assistant.
+The user asked: "{user_message_content}"
+This request is off-topic or irrelevant to movie booking, showtimes, seats, ticket cancellations, or movie-theater policies.
+Politely inform the user that you can only assist with movie ticket booking related questions, and gently steer them back.
+Directly reference what they asked in a natural way so they know you understood their input, but explain why you cannot help with it.
+Keep your response friendly, concise, and helpful.
+"""
+        refusal_response = llm.invoke([
+            {"role": "system", "content": refusal_prompt}
+        ])
+        res["messages"] = [AIMessage(content=refusal_response.content)]
+
+    return res

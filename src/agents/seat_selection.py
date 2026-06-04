@@ -38,14 +38,20 @@ seat_react_agent = create_agent(
         get_seats_types_available,
         get_seats_available
     ],
-    state_modifier=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 def seat_selection_node(state: SeatAgentState) -> SeatAgentState:
     logger.info(f"seat selection agent called — user: {state.get('user_id')}")
 
-    result = seat_react_agent.invoke(state)
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    agent_state = {**state, "messages": input_messages}
+
+    result = seat_react_agent.invoke(agent_state)
 
     seat_map       = state.get("seat_map")
     available_seats = state.get("available_seats")
@@ -60,7 +66,7 @@ def seat_selection_node(state: SeatAgentState) -> SeatAgentState:
 
     return {
         **state,
-        "messages":       result["messages"],
+        "messages":       result["messages"][len(input_messages):],
         "seat_map":       seat_map,
         "available_seats": available_seats
     }

@@ -10,7 +10,7 @@ def confirm_node(state: dict) -> dict:
     draft = state.get("booking_draft")
 
     if not draft:
-        return state
+        return {}
 
     # pause here — user sees booking details and approves/rejects
     decision = interrupt({
@@ -21,7 +21,7 @@ def confirm_node(state: dict) -> dict:
 
     if decision != "Approve":
         logger.info(f"booking rejected by user")
-        return {**state, "booking_draft": None, "confirmed": False}
+        return {"booking_draft": None, "confirmed": False}
 
     # write to JSON only after approval
     showtimes_db = load_db(DBFile.SHOWTIMES)
@@ -46,4 +46,4 @@ def confirm_node(state: dict) -> dict:
     save_db(DBFile.SHOWTIMES, showtimes_db)
 
     logger.info(f"booking {draft['booking_id']} confirmed")
-    return {**state, "confirmed": True, "booking_draft": confirmed_draft}
+    return {"confirmed": True, "booking_draft": confirmed_draft}

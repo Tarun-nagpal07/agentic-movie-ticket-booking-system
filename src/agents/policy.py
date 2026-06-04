@@ -39,14 +39,20 @@ Topics you handle:
 policy_react_agent = create_agent(
     get_llm(),
     tools=[search_policy_docs],
-    state_modifier=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 def policy_node(state: PolicyAgentState) -> PolicyAgentState:
     logger.info(f"policy agent called — user: {state.get('user_id')}")
 
-    result = policy_react_agent.invoke(state)
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    agent_state = {**state, "messages": input_messages}
+
+    result = policy_react_agent.invoke(agent_state)
 
     retrieved_chunks = state.get("retrieved_chunks")
     policy_answer    = state.get("policy_answer")
@@ -60,7 +66,7 @@ def policy_node(state: PolicyAgentState) -> PolicyAgentState:
 
     return {
         **state,
-        "messages":        result["messages"],
+        "messages":        result["messages"][len(input_messages):],
         "retrieved_chunks": retrieved_chunks,
         "policy_answer":   policy_answer
     }

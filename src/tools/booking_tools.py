@@ -2,7 +2,8 @@ from src.utils.logger import get_logger
 from src.utils.errors import handle_errors, ToolError,BookingError
 from src.db.json_store import load_db, save_db
 from src.config.constants import DBFile,SeatStatus
-from langchain.tools import tool, ToolRuntime
+from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
 from src.utils.date_utils import get_today, get_now, is_show_in_future
 from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request, current_movies
 from src.schemas.booking import BookingRequest
@@ -29,8 +30,18 @@ def get_theater_by_city(city: str) -> dict:
             code = "NO_THEATERS_FOUND",
             recoverable=True
         )
-    logger.info(f"found {len(theaters)} theaters in {city}")
-    return {"status":"success","theaters":theaters}
+    
+    cleaned = []
+    for t in theaters:
+        cleaned.append({
+            "theater_id": t["theater_id"],
+            "name": t["name"],
+            "city": t["city"],
+            "address": t["address"]
+        })
+
+    logger.info(f"found {len(cleaned)} theaters in {city}")
+    return {"status":"success","theaters":cleaned}
 
 
 @tool("get_movies", args_schema=current_movies)
@@ -78,7 +89,15 @@ def get_movies_by_city(city: str, date: str | None = None) -> dict:
             )
 
             if has_show_on_date and movie_id in movies_lookup:
-                movies_found[movie_id] = movies_lookup[movie_id]
+                m_info = movies_lookup[movie_id]
+                movies_found[movie_id] = {
+                    "movie_id": m_info["movie_id"],
+                    "title": m_info["title"],
+                    "genre": m_info.get("genre", []),
+                    "language": m_info.get("language", ""),
+                    "duration_min": m_info.get("duration_min"),
+                    "rating": m_info.get("rating")
+                }
 
     if not movies_found:
         raise ToolError(
@@ -124,7 +143,15 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
         for movie_id, shows in theater_shows.items():
             shows_on_date = [s for s in shows if s["date"] == date]
             if shows_on_date and movie_id in movies_lookup:
-                movies_showing.append(movies_lookup[movie_id])
+                m_info = movies_lookup[movie_id]
+                movies_showing.append({
+                    "movie_id": m_info["movie_id"],
+                    "title": m_info["title"],
+                    "genre": m_info.get("genre", []),
+                    "language": m_info.get("language", ""),
+                    "duration_min": m_info.get("duration_min"),
+                    "rating": m_info.get("rating")
+                })
 
         result[tid] = movies_showing
 
@@ -153,6 +180,40 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
     date = date or get_today()
     db = load_db(DBFile.SHOWTIMES)
 
+    # 0. If movie_id is actually a show_id (e.g. starting with "s")
+    if movie_id and movie_id.startswith("s"):
+        resolved_mid = None
+        resolved_tid = None
+        for tid, movie_shows in db["showtimes"].items():
+            for mid, shows in movie_shows.items():
+                for s in shows:
+                    if s["show_id"] == movie_id:
+                        resolved_mid = mid
+                        resolved_tid = tid
+                        break
+                if resolved_mid:
+                    break
+            if resolved_mid:
+                break
+        if resolved_mid:
+            logger.info(f"Resolved show_id '{movie_id}' as movie_id '{resolved_mid}' at theater '{resolved_tid}'")
+            movie_id = resolved_mid
+            theater_id = resolved_tid
+
+    # 1. Resolve theater_id if passed as name
+    if theater_id not in db["showtimes"]:
+        theaters_db = load_db(DBFile.THEATERS)
+        resolved_tid = None
+        for city, theaters_list in theaters_db["theaters"].items():
+            for t in theaters_list:
+                if t["name"].lower() == theater_id.lower() or theater_id.lower() in t["name"].lower():
+                    resolved_tid = t["theater_id"]
+                    break
+            if resolved_tid:
+                break
+        if resolved_tid:
+            theater_id = resolved_tid
+
     theater_shows = db["showtimes"].get(theater_id)
     if not theater_shows:
         raise ToolError(
@@ -160,6 +221,17 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
             code="THEATER_NOT_FOUND",
             recoverable=True
         )
+
+    # 2. Resolve movie_id if passed as title
+    if movie_id not in theater_shows:
+        movies_db = load_db(DBFile.MOVIES)
+        resolved_mid = None
+        for m in movies_db["movies"]:
+            if m["title"].lower() == movie_id.lower() or movie_id.lower() in m["title"].lower():
+                resolved_mid = m["movie_id"]
+                break
+        if resolved_mid:
+            movie_id = resolved_mid
 
     movie_shows = theater_shows.get(movie_id)
     if not movie_shows:
@@ -177,20 +249,32 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
             recoverable=True
         )
 
-    # attach available seat count to each show
+    cleaned_shows = []
     for show in shows_on_date:
-        show["seats_available"] = sum(
+        seats_available = sum(
             1 for status in show["seats"].values()
             if status == SeatStatus.AVAILABLE
         )
+        cleaned_shows.append({
+            "show_id": show["show_id"],
+            "movie_id": show["movie_id"],
+            "theater_id": show["theater_id"],
+            "screen_no": show["screen_no"],
+            "screen_name": show["screen_name"],
+            "date": show["date"],
+            "time": show["time"],
+            "format": show["format"],
+            "price": show["price"],
+            "seats_available": seats_available
+        })
 
-    logger.info(f"found {len(shows_on_date)} shows for movie {movie_id} on {date}")
-    return {"status": "success", "shows": shows_on_date}
+    logger.info(f"found {len(cleaned_shows)} shows for movie {movie_id} on {date}")
+    return {"status": "success", "shows": cleaned_shows}
 
 
 @tool("book_tickets",args_schema=BookingRequest)
 @handle_errors(error_class=BookingError)
-def book_tickets(show_id: str, seats: list[str], num_tickets: int, runtime: ToolRuntime) -> dict:
+def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: RunnableConfig) -> dict:
     """
     Validates and prepares a booking draft.
     Does NOT confirm the booking — confirmation happens separately.
@@ -200,7 +284,13 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, runtime: Tool
         seats: from recommend_seats result
         num_tickets: must match len(seats)
     """
-    user_id = runtime.state["user_id"]
+    user_id = config.get("configurable", {}).get("user_id")
+    if not user_id:
+        raise BookingError(
+            message="User ID not found in context.",
+            code="USER_ID_NOT_FOUND",
+            recoverable=False
+        )
 
     if len(seats) != num_tickets:
         raise BookingError(

@@ -42,7 +42,6 @@ def memory_read_node(state: BookingState) -> BookingState:
 
     logger.info(f"memory_read complete for user {user_id}")
     return {
-        **state,
         "memory":       user_memory or {},
         "past_sessions": past_sessions
     }
@@ -120,4 +119,4 @@ def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:
             store_session_summary(user_id, thread_id, summary)
             logger.info(f"memory_write: session summary stored for user {user_id}")
 
-    return state
+    return {}

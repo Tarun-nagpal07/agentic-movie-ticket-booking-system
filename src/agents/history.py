@@ -46,11 +46,18 @@ history_react_agent = create_agent(
         get_last_booking,
         get_bookings_by_status
     ],
-    state_modifier=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 def history_node(state: HistoryAgentState) -> HistoryAgentState:
     logger.info(f"history agent called — user: {state.get('user_id')}")
-    result = history_react_agent.invoke(state)
-    return {**state, "messages": result["messages"]}
+
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    agent_state = {**state, "messages": input_messages}
+
+    result = history_react_agent.invoke(agent_state)
+    return {**state, "messages": result["messages"][len(input_messages):]}

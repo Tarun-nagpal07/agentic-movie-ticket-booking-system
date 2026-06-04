@@ -42,24 +42,36 @@ cancellation_react_agent = create_agent(
         prepare_cancellation,
         process_refund
     ],
-    state_modifier=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 def cancellation_node(state: CancellationAgentState) -> CancellationAgentState:
     logger.info(f"cancellation agent called — user: {state.get('user_id')}")
 
-    result = cancellation_react_agent.invoke(state)
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    agent_state = {**state, "messages": input_messages}
+
+    result = cancellation_react_agent.invoke(agent_state)
 
     cancel_draft = state.get("cancel_draft")
     for msg in reversed(result["messages"]):
         content = getattr(msg, "content", None)
+        if isinstance(content, str):
+            import json
+            try:
+                content = json.loads(content)
+            except Exception:
+                pass
         if isinstance(content, dict) and content.get("status") == "draft":
             cancel_draft = content.get("cancel_draft")
             break
 
     return {
         **state,
-        "messages":    result["messages"],
+        "messages":    result["messages"][len(input_messages):],
         "cancel_draft": cancel_draft
     }
