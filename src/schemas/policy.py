@@ -1,0 +1,2 @@
+class PolicySearchRequest:
+    query : str
