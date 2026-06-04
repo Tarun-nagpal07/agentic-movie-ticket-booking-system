@@ -1,4 +1,4 @@
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from src.agents.llm import get_llm
 from src.graph.state import PolicyAgentState
 from src.tools.policy_tools import search_policy_docs
@@ -36,7 +36,7 @@ Topics you handle:
 - group booking rules
 """
 
-policy_react_agent = create_react_agent(
+policy_react_agent = create_agent(
     get_llm(),
     tools=[search_policy_docs],
     state_modifier=SYSTEM_PROMPT
