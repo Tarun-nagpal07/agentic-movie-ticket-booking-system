@@ -18,6 +18,9 @@ class BookingState(TypedDict):
     booking_draft: dict | None                # from booking agent → confirm node
     cancel_draft: dict | None                 # from cancellation agent → cancel_confirm node
 
+    city : str | None
+    movie_title: str | None
+    date : str | None
 
     confirmed: bool | None                    # True/False after human-in-the-loop
 

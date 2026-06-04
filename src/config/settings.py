@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     BASE_URL: str
     LLM_MODEL: str = Field(default="gpt-4o-mini")
     REDIS_URL: str
+
     # QDRANT_URL: str
 
     # QDRANT_POLICY_COLLECTION: str = Field(default="policy_docs")
