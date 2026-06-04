@@ -28,10 +28,12 @@ def memory_read_node(state: BookingState) -> BookingState:
         user_memory = users_db["users"].get(user_id)
 
     # inject relevant past sessions into context
+    # LangGraph messages are objects — use getattr, not dict access
     last_message = ""
     for m in reversed(messages):
-        if isinstance(m.get("content"), str):
-            last_message = m["content"]
+        content = getattr(m, "content", None)
+        if isinstance(content, str):
+            last_message = content
             break
 
     past_sessions = []
@@ -54,7 +56,7 @@ def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:
     Also syncs changes back to users.json.
     """
     user_id   = state["user_id"]
-    thread_id = state.get("thread_id", "unknown")
+    thread_id = state.get("thread_id", "unknown")  # passed via graph config or state
     messages  = state.get("messages", [])
     confirmed = state.get("confirmed")
     updates   = {}

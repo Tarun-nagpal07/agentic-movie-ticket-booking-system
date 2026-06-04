@@ -16,12 +16,14 @@ def retrieve_policy_chunks(query: str, top_k: int = Limits.RAG_TOP_K) -> list[di
     client    = get_qdrant_client()
     embedding = get_embedding(query)
 
-    results = client.search(
+    response = client.query_points(
         collection_name=QdrantCollection.POLICY_DOCS,
-        query_vector=embedding,
+        query=embedding,
         limit=top_k,
         with_payload=True
     )
+
+    results = response.points
 
     if not results:
         logger.warning(f"no policy chunks found for query: '{query}'")

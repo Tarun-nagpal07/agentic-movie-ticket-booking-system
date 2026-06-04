@@ -26,6 +26,9 @@ class BookingState(TypedDict):
 
     error_message: str | None
 
+    past_sessions: list | None                # episodic memory — past session summaries
+    thread_id: str | None                     # session/thread identifier
+
 
 class BookingAgentState(TypedDict):
     """

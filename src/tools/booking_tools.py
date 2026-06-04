@@ -247,6 +247,7 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, runtime: Tool
         "show_time":        show["time"],
         "format":           show["format"],
         "seats":            seats,
+        "seat_types":       show.get("seat_types", {}),  # for memory agent seat pref inference
         "num_tickets":      num_tickets,
         "price_per_ticket": show["price"],
         "total_price":      total_price,

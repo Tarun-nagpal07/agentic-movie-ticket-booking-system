@@ -1,4 +1,5 @@
 import uuid
+import json
 from pathlib import Path
 from qdrant_client.models import PointStruct
 from src.rag.embeddings import get_embeddings_batch
@@ -8,49 +9,21 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-POLICY_FILE  = Path(__file__).parent.parent.parent / "data" / "policy.txt"
-CHUNK_SIZE   = 300    # characters per chunk
-CHUNK_OVERLAP = 50    # overlap between chunks to preserve context
+POLICY_FILE  = Path(__file__).parent.parent.parent / "data" / "policy.json"
 
 
-def load_policy_txt(path: Path) -> str:
+def load_policy_json(path: Path) -> list[dict]:
     if not path.exists():
-        raise FileNotFoundError(f"policy.txt not found at {path}")
-    return path.read_text(encoding="utf-8")
-
-
-def split_into_chunks(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[dict]:
-    """
-    Splits text into overlapping chunks.
-    Each chunk carries its source line range for citation.
-    """
-    chunks   = []
-    start    = 0
-    chunk_id = 0
-
-    while start < len(text):
-        end   = start + chunk_size
-        chunk = text[start:end].strip()
-
-        if chunk:
-            chunks.append({
-                "chunk_id": chunk_id,
-                "text":     chunk,
-                "start":    start,
-                "end":      min(end, len(text))
-            })
-            chunk_id += 1
-
-        start = end - overlap   # overlap for context continuity
-
-    logger.info(f"split policy.txt into {len(chunks)} chunks")
-    return chunks
+        raise FileNotFoundError(f"policy.json not found at {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("policies", [])
 
 
 def index_policy_docs(force: bool = False) -> None:
     """
     One-time indexing script.
-    Reads policy.txt → splits into chunks → embeds → stores in Qdrant.
+    Reads policy.json → embeds → stores in Qdrant.
 
     Args:
         force: if True, deletes existing collection and reindexes from scratch
@@ -70,16 +43,15 @@ def index_policy_docs(force: bool = False) -> None:
         ensure_collections()
         logger.info("existing policy collection deleted — reindexing from scratch")
 
-    # load and split
+    # load policy json
     logger.info(f"loading policy from {POLICY_FILE}")
-    raw_text = load_policy_txt(POLICY_FILE)
-    chunks   = split_into_chunks(raw_text)
+    policies = load_policy_json(POLICY_FILE)
 
-    if not chunks:
-        raise ValueError("policy.txt is empty — nothing to index")
+    if not policies:
+        raise ValueError("policy.json is empty or has no policies — nothing to index")
 
-    # batch embed all chunks
-    texts      = [c["text"] for c in chunks]
+    # batch embed all policy texts
+    texts      = [p["text"] for p in policies]
     embeddings = get_embeddings_batch(texts)
 
     # build Qdrant points
@@ -88,14 +60,13 @@ def index_policy_docs(force: bool = False) -> None:
             id=str(uuid.uuid4()),
             vector=embeddings[i],
             payload={
-                "chunk_id": chunk["chunk_id"],
-                "text":     chunk["text"],
-                "source":   "policy.txt",
-                "start":    chunk["start"],
-                "end":      chunk["end"]
+                "chunk_id": p["chunk_id"],
+                "topic":    p.get("topic", "general"),
+                "text":     p["text"],
+                "source":   "policy.json"
             }
         )
-        for i, chunk in enumerate(chunks)
+        for i, p in enumerate(policies)
     ]
 
     # upsert in batches of 100

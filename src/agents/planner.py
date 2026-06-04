@@ -60,11 +60,18 @@ def planner_node(state: BookingState) -> BookingState:
                             - past bookings count: {len(memory.get("booking_history", []))}
                             """
 
+    # LangGraph messages are objects (HumanMessage/AIMessage) with .type and .content
+    formatted_msgs = []
+    for m in messages:
+        content = getattr(m, "content", None)
+        msg_type = getattr(m, "type", "user")       # "human" | "ai" | "tool"
+        if isinstance(content, str):
+            role = "user" if msg_type == "human" else "assistant"
+            formatted_msgs.append({"role": role, "content": content})
+
     response: PlannerResponse = structured_llm.invoke([
         {"role": "system", "content": system_with_context},
-        *[{"role": m["role"], "content": m["content"]}
-          for m in messages
-          if isinstance(m.get("content"), str)]
+        *formatted_msgs
     ])
 
     next_agent = INTENT_TO_AGENT.get(response.intent, "unknown")
