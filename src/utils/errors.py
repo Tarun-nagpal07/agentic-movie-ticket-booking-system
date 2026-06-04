@@ -19,6 +19,10 @@ class ValidationError(MovieAgentError):
     """Raised when input validation fails"""
     pass
 
+class ModelError(MovieAgentError):
+    """Raise when model error"""
+    pass
+
 class AgentError(MovieAgentError):
     """Raised for general agent errors that don't fit other categories"""
     pass

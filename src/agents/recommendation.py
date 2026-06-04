@@ -1,47 +1,39 @@
-# src/agents/recommendation.py
-
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import AzureChatOpenAI
+from langchain.agents import create_agent
+from src.agents.llm import get_llm
+from src.graph.state import RecommendationAgentState
 from src.tools.recommendation_tools import (
     get_user_preferences,
     recommend_movies_by_preference,
     recommend_theaters_for_movie,
     recommend_based_on_history
 )
-from src.config.settings import settings
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# llm = AzureChatOpenAI(
-#     azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-#     azure_deployment=settings.AZURE_OPENAI_DEPLOYMENT_NAME,
-#     api_version=settings.AZURE_OPENAI_API_VERSION,
-#     api_key=settings.AZURE_OPENAI_API_KEY
-# )
-
 SYSTEM_PROMPT = """
-You are a movie recommendation assistant.
-You suggest movies based on user preferences, history, and what is currently showing.
+You are a personalized movie recommendation assistant.
+You suggest movies based on what is currently showing and the user's taste.
 
-Tools available:
-- get_user_preferences: always call this first — gets city, genres, location
-- recommend_movies_by_preference: suggests movies matching genre and language
-- recommend_theaters_for_movie: finds best theaters for a movie sorted by distance
-- recommend_based_on_history: suggests movies based on what user watched before
+Tools available and when to use them:
+- get_user_preferences          : ALWAYS call this first — gets city, genres, location, history
+- recommend_movies_by_preference: use for "suggest a movie", "what's good", "show me sci-fi"
+- recommend_based_on_history    : use for "based on my taste", "similar to before", "surprise me"
+- recommend_theaters_for_movie  : ALWAYS call after picking top movie — finds nearest theaters
 
-Rules:
-- always call get_user_preferences first
-- only recommend movies showing TODAY in user's city
-- for "suggest something" or "what should I watch" → recommend_movies_by_preference
-- for "based on my history" or "similar to before" → recommend_based_on_history
-- after recommending movies, also call recommend_theaters_for_movie for top pick
-- always show match_score, rating, genre, and available theaters in response
-- if user wants to book after recommendation, tell them to confirm and the booking agent will take over
+Strict rules:
+- ALWAYS call get_user_preferences first, every time
+- ONLY recommend movies showing TODAY in user's city
+- for generic requests → recommend_movies_by_preference using memory genres
+- for history-based requests → recommend_based_on_history
+- ALWAYS follow up top recommendation with recommend_theaters_for_movie
+- show match_score, genre, language, rating, and available theaters in response
+- if user wants to book after recommendation → confirm movie + theater and tell them booking agent will proceed
+- NEVER recommend movies not in the tool results — do not hallucinate titles
 """
 
-recommendation_agent = create_react_agent(
-    llm,
+recommendation_react_agent = create_agent(
+    get_llm(),
     tools=[
         get_user_preferences,
         recommend_movies_by_preference,
@@ -52,7 +44,26 @@ recommendation_agent = create_react_agent(
 )
 
 
-def recommendation_node(state: dict) -> dict:
-    logger.info(f"recommendation agent called for user {state.get('user_id')}")
-    result = recommendation_agent.invoke(state)
-    return {**state, "messages": result["messages"]}
+def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentState:
+    logger.info(f"recommendation agent called — user: {state.get('user_id')}")
+
+    result = recommendation_react_agent.invoke(state)
+
+    # extract recommendations from tool messages if present
+    recommendations    = state.get("recommendations")
+    suggested_theaters = state.get("suggested_theaters")
+
+    for msg in reversed(result["messages"]):
+        content = getattr(msg, "content", None)
+        if isinstance(content, dict):
+            if "recommendations" in content:
+                recommendations = content["recommendations"]
+            if "theaters" in content:
+                suggested_theaters = content["theaters"]
+
+    return {
+        **state,
+        "messages":          result["messages"],
+        "recommendations":   recommendations,
+        "suggested_theaters": suggested_theaters
+    }
