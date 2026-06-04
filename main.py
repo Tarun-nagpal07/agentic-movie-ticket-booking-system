@@ -133,6 +133,31 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 
+@app.get("/chat/history")
+def get_chat_history(user_id: str, thread_id: str):
+    try:
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "user_id": user_id
+            }
+        }
+        snapshot = graph.get_state(config)
+        formatted_msgs = format_messages(snapshot.values.get("messages", []))
+        interrupt_info = get_active_interrupt(snapshot)
+        return {
+            "status": "requires_confirmation" if interrupt_info else "success",
+            "interrupt": interrupt_info,
+            "messages": formatted_msgs
+        }
+    except Exception as e:
+        logger.error(f"Error fetching history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching history: {str(e)}"
+        )
+
+
 @app.post("/chat/confirm")
 async def confirm_endpoint(request: ConfirmRequest):
     try:
