@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     # AZURE_OPENAI_DEPLOYMENT_NAME: str
     # AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str
     # AZURE_OPENAI_API_VERSION: str
-
-    # REDIS_URL: str
+    DEBUG: bool = Field(default=False)
+    API_KEY: str 
+    BASE_URL: str
+    LLM_MODEL: str = Field(default="gpt-4o-mini")
+    REDIS_URL: str
     # QDRANT_URL: str
 
     # QDRANT_POLICY_COLLECTION: str = Field(default="policy_docs")

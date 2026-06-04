@@ -38,3 +38,50 @@ class ShowTime(BaseModel):
     price: int
     seats: dict[str, SeatStatus]
     seat_types: dict[str, SeatType]
+
+
+class theater_by_city(BaseModel):
+    city : str
+
+
+class movies_now_showing(BaseModel):
+    theater_ids : list[str]
+    date : str | None 
+
+class showtimes_request(BaseModel):
+    movie_id: str
+    theater_id: str
+    date: str
+
+
+class seat_map_request(BaseModel):
+    movie_id: str
+    theater_id: str
+    show_id: str
+
+class seats_types_available(BaseModel):
+    movie_id: str
+    theater_id: str
+    show_id: str
+    seat_type: list[str]
+
+class seats_available(BaseModel):
+    movie_id:str
+    theater_id:str
+    show_id:str
+    seats: list[str]
+
+class current_movies(BaseModel):
+    city: str
+    date: str
+
+class RecommendMoviesRequest(BaseModel):
+    genres: list[str]
+    city: str
+    language: str | None = None
+    limit: int | None 
+
+class RecommendTheatersRequest(BaseModel):
+    movie_id: str
+    city: str
+
