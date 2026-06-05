@@ -2,14 +2,23 @@ from openai import OpenAI
 from src.config.settings import settings
 from src.utils.logger import get_logger
 from src.utils.errors import RAGError, handle_errors
+from langchain_huggingface import HuggingFaceEmbeddings 
 
+
+
+EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
+EMBEDDING_DIM   = "768"
+
+
+embeddings = HuggingFaceEmbeddings(
+            model_name = EMBEDDING_MODEL 
+)
 logger = get_logger(__name__)
 
-client = OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.BASE_URL)
+# client = OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.BASE_URL)
+
 
 EMBEDDING_MODEL = "text-embedding-3-small"
-EMBEDDING_DIM   = 1536
-
 
 @handle_errors(error_class=RAGError)
 def get_embedding(text: str) -> list[float]:
@@ -26,11 +35,12 @@ def get_embedding(text: str) -> list[float]:
             recoverable=False
         )
 
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=text
-    )
+    # response = client.embeddings.create(
+    #     model=EMBEDDING_MODEL,
+    #     input=text
+    # )
 
+    response = embeddings(input=text)
     logger.debug(f"embedding generated for text: '{text[:60]}...'")
     return response.data[0].embedding
 
@@ -50,10 +60,11 @@ def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
             recoverable=False
         )
 
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=cleaned
-    )
+    # response = client.embeddings.create(
+    #     model=EMBEDDING_MODEL,
+    #     input=cleaned
+    # )
+    response = embeddings(input=cleaned)
 
     logger.info(f"batch embedding: {len(cleaned)} texts embedded")
     return [item.embedding for item in response.data]

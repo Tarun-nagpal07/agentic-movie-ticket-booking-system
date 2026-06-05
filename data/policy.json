@@ -1,64 +1,204 @@
 {
-    "policies": [
-        {
-            "chunk_id": "p1",
-            "topic": "cancellation",
-            "text": "Cancellations made more than 24 hours before the show time are eligible for a 90% refund. The remaining 10% is kept as a convenience fee."
-        },
-        {
-            "chunk_id": "p2",
-            "topic": "cancellation",
-            "text": "Cancellations made between 2 and 24 hours before the show time are eligible for a 50% refund only."
-        },
-        {
-            "chunk_id": "p3",
-            "topic": "cancellation",
-            "text": "Cancellations made less than 2 hours before the show time are not eligible for any refund."
-        },
-        {
-            "chunk_id": "p4",
-            "topic": "refund",
-            "text": "Approved refunds are processed within 5 to 7 business days back to the original payment method used at the time of booking."
-        },
-        {
-            "chunk_id": "p5",
-            "topic": "refund",
-            "text": "UPI and wallet payments are refunded within 2 business days. Credit and debit card refunds may take up to 7 business days depending on the bank."
-        },
-        {
-            "chunk_id": "p6",
-            "topic": "booking",
-            "text": "A maximum of 10 tickets can be booked per transaction. For group bookings above 10, please contact our support team."
-        },
-        {
-            "chunk_id": "p7",
-            "topic": "booking",
-            "text": "Tickets once booked cannot be transferred to another show or date. You must cancel and rebook separately."
-        },
-        {
-            "chunk_id": "p8",
-            "topic": "seat",
-            "text": "Seat selection is available up to 30 minutes before the show. After that, the system auto-assigns available seats."
-        },
-        {
-            "chunk_id": "p9",
-            "topic": "seat",
-            "text": "Recliner seats must be booked at least 1 hour before the show. Walk-in recliner bookings are not available at the counter."
-        },
-        {
-            "chunk_id": "p10",
-            "topic": "food",
-            "text": "Outside food and beverages are not permitted inside the screening halls. Food courts and in-hall ordering are available at select theaters."
-        },
-        {
-            "chunk_id": "p11",
-            "topic": "children",
-            "text": "Children below the age of 3 are allowed free entry without a seat. Children aged 3 and above require a full ticket."
-        },
-        {
-            "chunk_id": "p12",
-            "topic": "payment",
-            "text": "We accept UPI, credit cards, debit cards, net banking, and wallet payments. Cash payment is not accepted for online bookings."
-        }
-    ]
+  "policies": [
+    {
+      "chunk_id": "p1",
+      "topic": "cancellation",
+      "text": "Cancellations made more than 24 hours before the scheduled show time are eligible for a 90% refund. A 10% convenience fee is deducted automatically."
+    },
+    {
+      "chunk_id": "p2",
+      "topic": "cancellation",
+      "text": "Cancellations made between 2 and 24 hours before the show time are eligible for a 50% refund. The remaining 50% is non-refundable."
+    },
+    {
+      "chunk_id": "p3",
+      "topic": "cancellation",
+      "text": "Cancellations made less than 2 hours before show time are not eligible for any refund under any circumstances."
+    },
+    {
+      "chunk_id": "p4",
+      "topic": "refund",
+      "text": "Approved refunds are processed within 5 to 7 business days to the original payment method used during booking."
+    },
+    {
+      "chunk_id": "p5",
+      "topic": "refund",
+      "text": "UPI and wallet refunds are typically processed within 24 to 48 hours, while card and net banking refunds may take up to 7 business days depending on bank processing times."
+    },
+    {
+      "chunk_id": "p6",
+      "topic": "booking",
+      "text": "A maximum of 10 tickets can be booked per transaction. Bulk bookings beyond this limit require customer support approval."
+    },
+    {
+      "chunk_id": "p7",
+      "topic": "booking",
+      "text": "Once a ticket is booked, it cannot be modified, transferred, or exchanged for another show or date. Users must cancel and rebook if changes are needed."
+    },
+    {
+      "chunk_id": "p8",
+      "topic": "booking",
+      "text": "All bookings are subject to seat availability at the time of payment confirmation. Holding seats without payment is not permitted."
+    },
+    {
+      "chunk_id": "p9",
+      "topic": "seat",
+      "text": "Seat selection is allowed until 30 minutes before show start time. After that, seats are auto-assigned based on availability."
+    },
+    {
+      "chunk_id": "p10",
+      "topic": "seat",
+      "text": "Recliner seats must be booked at least 1 hour before show time. These seats are not available for last-minute booking or walk-ins."
+    },
+    {
+      "chunk_id": "p11",
+      "topic": "seat",
+      "text": "Seat allocation is strictly first-come, first-served and cannot be changed once payment is completed."
+    },
+    {
+      "chunk_id": "p12",
+      "topic": "payment",
+      "text": "We accept UPI, debit cards, credit cards, net banking, and wallet payments. Cash payments are not supported for online bookings."
+    },
+    {
+      "chunk_id": "p13",
+      "topic": "payment",
+      "text": "Payments must be completed within the session timeout window. Failed or incomplete payments will release reserved seats automatically."
+    },
+    {
+      "chunk_id": "p14",
+      "topic": "food",
+      "text": "Outside food and beverages are strictly prohibited inside cinema halls. However, food courts and in-seat ordering are available at select theaters."
+    },
+    {
+      "chunk_id": "p15",
+      "topic": "food",
+      "text": "Theaters may provide in-app food ordering services where available. Delivery timing is subject to theater operational constraints."
+    },
+    {
+      "chunk_id": "p16",
+      "topic": "children",
+      "text": "Children below 3 years of age may enter free of charge without a separate seat. Children aged 3 years and above require a full ticket."
+    },
+    {
+      "chunk_id": "p17",
+      "topic": "children",
+      "text": "Age restrictions may apply to certain movies based on certification (U, UA, A). Theater staff may request valid age proof."
+    },
+    {
+      "chunk_id": "p18",
+      "topic": "general",
+      "text": "The management reserves the right to deny entry or cancel bookings in case of policy violations, misconduct, or technical errors."
+    },
+    {
+      "chunk_id": "p19",
+      "topic": "general",
+      "text": "Show timings and availability are subject to change without prior notice due to operational or technical reasons."
+    },
+    {
+      "chunk_id": "p20",
+      "topic": "general",
+      "text": "All disputes are subject to local jurisdiction where the booking was made."
+    },
+    {
+      "chunk_id": "p21",
+      "topic": "discount",
+      "text": "Student, senior citizen, and defense personnel discounts (10-20% off) are available only for tickets purchased at the box office with valid ID proof. Not applicable on online bookings."
+    },
+    {
+      "chunk_id": "p22",
+      "topic": "discount",
+      "text": "Early bird discounts (15% off) apply for shows booked at least 3 days in advance. Offer cannot be combined with other promotional codes or loyalty points."
+    },
+    {
+      "chunk_id": "p23",
+      "topic": "loyalty",
+      "text": "Members earn 5 loyalty points for every ₹100 spent on tickets. Points can be redeemed at 1 point = ₹1 for future bookings, subject to a minimum redemption of 50 points."
+    },
+    {
+      "chunk_id": "p24",
+      "topic": "loyalty",
+      "text": "Loyalty points expire 6 months from the date of issue. Unused points are non-refundable and cannot be transferred to another account."
+    },
+    {
+      "chunk_id": "p25",
+      "topic": "accessibility",
+      "text": "Wheelchair-accessible seats are available in all theaters. Please contact customer support at least 24 hours before show time to reserve these seats."
+    },
+    {
+      "chunk_id": "p26",
+      "topic": "accessibility",
+      "text": "Audio description and closed captioning devices are available for select shows. Request these at the time of booking; availability is limited and first-come, first-served."
+    },
+    {
+      "chunk_id": "p27",
+      "topic": "late_arrival",
+      "text": "Entry may be denied for patrons arriving more than 15 minutes after show start time, at the theater's discretion. No refunds will be issued for late arrivals."
+    },
+    {
+      "chunk_id": "p28",
+      "topic": "late_arrival",
+      "text": "Latecomers will only be allowed entry during a suitable break in the film (e.g., after trailers or intermission) to avoid disturbance to other guests."
+    },
+    {
+      "chunk_id": "p29",
+      "topic": "group_booking",
+      "text": "Group bookings of 20+ tickets require 7 days' advance notice. A 30% non-refundable deposit is required at the time of confirmation."
+    },
+    {
+      "chunk_id": "p30",
+      "topic": "group_booking",
+      "text": "For group bookings, cancellation policy varies: 75% refund if canceled 7+ days before show, 25% refund if canceled 3-6 days before, no refund if canceled within 48 hours."
+    },
+    {
+      "chunk_id": "p31",
+      "topic": "gift_card",
+      "text": "Gift cards are valid for 12 months from purchase date and can be used for tickets, food, and beverages. Unused balance after expiry is forfeited."
+    },
+    {
+      "chunk_id": "p32",
+      "topic": "gift_card",
+      "text": "Gift cards cannot be exchanged for cash or used to purchase other gift cards. Lost or stolen cards will not be replaced without proof of purchase."
+    },
+    {
+      "chunk_id": "p33",
+      "topic": "technical_issue",
+      "text": "If a show is interrupted due to technical failure (e.g., power outage, projector issue) for more than 30 minutes, patrons may request a full refund or a complimentary pass for another show."
+    },
+    {
+      "chunk_id": "p34",
+      "topic": "technical_issue",
+      "text": "Refunds for technical disruptions must be requested at the box office within 24 hours of the scheduled show time. No refunds will be processed after this window."
+    },
+    {
+      "chunk_id": "p35",
+      "topic": "reschedule",
+      "text": "Ticket rescheduling is permitted up to 4 hours before show time, subject to a ₹50 per ticket rescheduling fee and availability in the desired show."
+    },
+    {
+      "chunk_id": "p36",
+      "topic": "reschedule",
+      "text": "Rescheduled tickets cannot be canceled or rescheduled again. The new show time must be within 7 days of the original booking date."
+    },
+    {
+      "chunk_id": "p37",
+      "topic": "refund",
+      "text": "In case of duplicate booking or system error resulting in overcharge, the excess amount will be refunded within 3 business days after verification."
+    },
+    {
+      "chunk_id": "p38",
+      "topic": "seat",
+      "text": "Premium seats (e.g., sofa, couple seats, director's lounge) have a separate pricing tier and cannot be booked using standard seat vouchers or complimentary passes."
+    },
+    {
+      "chunk_id": "p39",
+      "topic": "payment",
+      "text": "International cards are accepted but may incur a 3.5% cross-border transaction fee. All charges will be processed in local currency (INR)."
+    },
+    {
+      "chunk_id": "p40",
+      "topic": "general",
+      "text": "Theater management may conduct random bag checks for security purposes. Refusal to comply will result in denial of entry without refund."
+    }
+  ]
 }
