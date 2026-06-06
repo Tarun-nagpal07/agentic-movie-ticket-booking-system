@@ -12,7 +12,8 @@ def get_llm(structure: bool = False):
     primary_model = init_chat_model(
         model=settings.LLM_MODEL,
         api_key=settings.API_KEY,
-        base_url=settings.BASE_URL
+        base_url=settings.BASE_URL,
+        streaming=not structure
     )
 
     fallbacks = []
@@ -22,10 +23,11 @@ def get_llm(structure: bool = False):
         logger.info("Configuring Llama-3.1-70B-Instruct via Hugging Face as fallback LLM.")
         try:
             llama_endpoint = HuggingFaceEndpoint(
-                repo_id="meta-llama/Llama-3.1-70B-Instruct",
+                repo_id=settings.FIRST_FALLBACK_LLM,
                 huggingfacehub_api_token=settings.HF_TOKEN,
                 max_new_tokens=512,
-                temperature=0.01
+                temperature=0.01,
+                streaming=True
             )
             llama_model = ChatHuggingFace(llm=llama_endpoint)
             fallbacks.append(llama_model)

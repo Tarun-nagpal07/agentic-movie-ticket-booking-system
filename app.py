@@ -24,6 +24,14 @@ st.markdown("""
     }
     
     /* Main Background & Gradient Banner */
+    .stApp {
+        background-color: #0B0B14 !important;
+        background-image: 
+            radial-gradient(at 0% 0%, rgba(112, 0, 255, 0.09) 0px, transparent 55%),
+            radial-gradient(at 100% 100%, rgba(255, 51, 102, 0.07) 0px, transparent 55%) !important;
+        background-attachment: fixed !important;
+    }
+    
     .banner-title {
         background: linear-gradient(135deg, #FF3366 0%, #7000FF 100%);
         -webkit-background-clip: text;
@@ -41,13 +49,13 @@ st.markdown("""
     
     /* Glassmorphic Cards */
     .glass-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 16px;
         padding: 1.5rem;
         backdrop-filter: blur(10px);
         margin-bottom: 1.5rem;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
     }
     
     .glass-header {
@@ -58,6 +66,59 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 0.5rem;
+    }
+    
+    /* Glowing Glassmorphic Chat Messages */
+    [data-testid="stChatMessage"] {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 16px !important;
+        padding: 1rem 1.25rem !important;
+        margin-bottom: 1rem !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    [data-testid="stChatMessage"]:hover {
+        border-color: rgba(112, 0, 255, 0.25) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(112, 0, 255, 0.12) !important;
+    }
+    
+    /* Custom style for Streamlit Chat Input */
+    [data-testid="stChatInput"] {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    [data-testid="stChatInput"]:focus-within {
+        border-color: #7000FF !important;
+        box-shadow: 0 0 12px rgba(112, 0, 255, 0.25) !important;
+    }
+    [data-testid="stChatInput"] textarea {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Glassmorphic Error/Warning Alert Card */
+    .glass-error-card {
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.25);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        color: #FCA5A5;
+        backdrop-filter: blur(8px);
+        margin: 1.2rem 0;
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.12);
+        animation: shake 0.4s ease-in-out;
+    }
+    
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-4px); }
+        75% { transform: translateX(4px); }
     }
     
     /* Custom Badges */
@@ -102,7 +163,7 @@ st.markdown("""
         color: #8E8EA8;
         margin-top: 0.2rem;
     }
-
+ 
     /* Interactive Draft confirmation banner */
     .confirmation-box {
         background: linear-gradient(135deg, rgba(112, 0, 255, 0.1) 0%, rgba(255, 51, 102, 0.1) 100%);
@@ -316,9 +377,27 @@ if is_interrupted and interrupt_payload:
                     st.success("Approved successfully!")
                     st.rerun()
                 else:
-                    st.error(f"Approval failed: {res.text}")
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ Approval Failed
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            {res.text}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"Connection error: {str(e)}")
+                st.markdown(f"""
+                <div class="glass-error-card">
+                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        ⚠️ Connection Error
+                    </div>
+                    <div style="font-size: 0.9rem;">
+                        Could not connect to the backend server: {str(e)}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
     with btn_col2:
         if st.button("❌ Reject", key="hitl_reject", use_container_width=True):
@@ -332,9 +411,27 @@ if is_interrupted and interrupt_payload:
                     st.warning("Rejected/Cancelled draft booking.")
                     st.rerun()
                 else:
-                    st.error(f"Rejection failed: {res.text}")
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ Rejection Failed
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            {res.text}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"Connection error: {str(e)}")
+                st.markdown(f"""
+                <div class="glass-error-card">
+                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        ⚠️ Connection Error
+                    </div>
+                    <div style="font-size: 0.9rem;">
+                        Could not connect to the backend server: {str(e)}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -342,22 +439,87 @@ if is_interrupted and interrupt_payload:
 user_input = st.chat_input("Ask Cinemagic to search, book, recommend, cancel, or look up policies...")
 
 if user_input:
-    # Append user message instantly
-    with st.chat_message("user"):
-        st.markdown(user_input)
-        
-    # Send message to FastAPI
-    with st.spinner("Processing request..."):
-        try:
-            payload = {
-                "user_id": st.session_state.user_id,
-                "thread_id": st.session_state.thread_id,
-                "message": user_input
-            }
-            res = requests.post(f"{API_BASE_URL}/chat", json=payload)
-            if res.status_code == 200:
-                st.rerun()
-            else:
-                st.error(f"Error {res.status_code}: {res.text}")
-        except Exception as e:
-            st.error(f"Failed to connect to assistant: {str(e)}")
+    # Append user message and stream assistant reply inside the chat container
+    with chat_container:
+        with st.chat_message("user"):
+            st.markdown(user_input)
+            
+        with st.chat_message("assistant"):
+            status_placeholder = st.empty()
+            response_placeholder = st.empty()
+            full_response = ""
+            complete_payload = None
+            error_msg = None
+            
+            try:
+                payload = {
+                    "user_id": st.session_state.user_id,
+                    "thread_id": st.session_state.thread_id,
+                    "message": user_input
+                }
+                # Make a streaming POST request
+                res = requests.post(f"{API_BASE_URL}/chat/stream", json=payload, stream=True)
+                
+                if res.status_code == 200:
+                    for line in res.iter_lines():
+                        if line:
+                            decoded_line = line.decode('utf-8')
+                            if decoded_line.startswith("data: "):
+                                data = json.loads(decoded_line[6:])
+                                event_type = data.get("type")
+                                
+                                if event_type == "status":
+                                    status_placeholder.markdown(f"⏳ *{data.get('content')}*")
+                                elif event_type == "token":
+                                    # Clear status loading message on the first token arrival
+                                    status_placeholder.empty()
+                                    full_response += data.get("content", "")
+                                    response_placeholder.markdown(full_response + "▌")
+                                elif event_type == "complete":
+                                    complete_payload = data
+                                elif event_type == "error":
+                                    error_msg = data.get("message")
+                                    
+                    # Clean up the cursor and status
+                    status_placeholder.empty()
+                    response_placeholder.markdown(full_response)
+                    
+                    if error_msg:
+                        st.markdown(f"""
+                        <div class="glass-error-card">
+                            <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                ⚠️ System Alert
+                            </div>
+                            <div style="font-size: 0.9rem;">
+                                {error_msg}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    elif complete_payload:
+                        st.rerun()
+                else:
+                    status_placeholder.empty()
+                    # Handle non-200 responses gracefully
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ System Alert
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            The backend assistant service returned an error (HTTP {res.status_code}): {res.text}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                status_placeholder.empty()
+                # Handle connection or other client-side exceptions gracefully
+                st.markdown(f"""
+                <div class="glass-error-card">
+                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        ⚠️ Connection Failed
+                    </div>
+                    <div style="font-size: 0.9rem;">
+                        Could not establish a connection to the Cinemagic assistant. Please make sure the backend is running. (Error: {str(e)})
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
