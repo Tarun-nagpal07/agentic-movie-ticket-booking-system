@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 
+MOCK_DATE = "2025-06-01"   # must match the date(s) in data/showtimes.json
+
 def get_current_time() -> datetime:
-    """Returns simulated current datetime to support hardcoded 2025 dates"""
-    now = datetime.now()
-    if now.year >= 2026:
-        return datetime(2025, 5, 30, 8, 0, 0)
-    return now
+    """
+    Returns simulated 'now' so mock showtimes always appear as today.
+    Time is set to 08:00 so all shows (which start 10:00+) are in the future,
+    keeping booking and cancellation validation working correctly.
+    """
+    return datetime.strptime(f"{MOCK_DATE} 08:00", "%Y-%m-%d %H:%M")
 
 def get_today() -> str:
     """Returns today's date in YYYY-MM-DD format"""

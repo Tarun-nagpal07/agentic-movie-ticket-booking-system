@@ -10,7 +10,7 @@ from src.tools.booking_tools import (
     book_tickets
 )
 from src.utils.logger import get_logger
-
+from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
@@ -46,6 +46,7 @@ booking_react_agent = create_agent(
         book_tickets
     ],
     system_prompt=SYSTEM_PROMPT,
+    middleware=[trim_messages],
     debug=True
 )
 

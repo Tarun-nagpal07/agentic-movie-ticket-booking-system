@@ -16,7 +16,7 @@
         "t1",
         "t2"
       ],
-      "preferred_seat_type": "recliner",
+      "preferred_seat_type": "standard",
       "preferred_format": "IMAX",
       "language_pref": "English",
       "booking_history": [
@@ -115,6 +115,36 @@
           "total_price": 450,
           "status": "confirmed",
           "booked_at": "2025-05-30T08:00:00Z",
+          "refund_amount": null,
+          "cancelled_at": null
+        },
+        {
+          "booking_id": "b_008",
+          "user_id": "u1",
+          "movie_id": "m1",
+          "theater_id": "t1",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "show_id": "s101",
+          "show_date": "2025-06-01",
+          "show_time": "10:00",
+          "format": "IMAX",
+          "seats": [
+            "A1",
+            "A2"
+          ],
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "standard",
+            "D": "premium",
+            "E": "recliner"
+          },
+          "num_tickets": 2,
+          "price_per_ticket": 450,
+          "total_price": 900,
+          "status": "confirmed",
+          "booked_at": "2025-06-01T08:00:00Z",
           "refund_amount": null,
           "cancelled_at": null
         }

@@ -7,7 +7,7 @@ from src.tools.seat_tools import (
     get_seats_available
 )
 from src.utils.logger import get_logger
-
+from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
@@ -31,6 +31,7 @@ Strict rules:
 - NEVER book tickets directly — seat selection only confirms availability
 """
 
+
 seat_react_agent = create_agent(
     get_llm(),
     tools=[
@@ -38,7 +39,8 @@ seat_react_agent = create_agent(
         get_seats_types_available,
         get_seats_available
     ],
-    system_prompt=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT,
+    middleware=[trim_messages]
 )
 
 

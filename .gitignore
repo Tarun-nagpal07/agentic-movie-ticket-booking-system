@@ -83,3 +83,5 @@ uvicorn.errors
 .idea/
 .DS_Store
 Thumbs.db
+
+logs

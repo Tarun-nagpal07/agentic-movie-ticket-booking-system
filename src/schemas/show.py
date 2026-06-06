@@ -79,7 +79,7 @@ class RecommendMoviesRequest(BaseModel):
     genres: list[str]
     city: str
     language: str | None = None
-    limit: int | None 
+    limit: int = 5  # max recommendations to return
 
 class RecommendTheatersRequest(BaseModel):
     movie_id: str

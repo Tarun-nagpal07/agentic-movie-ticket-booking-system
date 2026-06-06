@@ -3,6 +3,7 @@ from src.agents.llm import get_llm
 from src.graph.state import PolicyAgentState
 from src.tools.policy_tools import search_policy_docs
 from src.utils.logger import get_logger
+from src.agents.middleware import trim_messages
 
 logger = get_logger(__name__)
 
@@ -39,7 +40,8 @@ Topics you handle:
 policy_react_agent = create_agent(
     get_llm(),
     tools=[search_policy_docs],
-    system_prompt=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT,
+    middleware=[trim_messages]
 )
 
 

@@ -1,14 +1,9 @@
 from langchain.agents import create_agent
 from src.agents.llm import get_llm
 from src.graph.state import RecommendationAgentState
-from src.tools.recommendation_tools import (
-    get_user_preferences,
-    recommend_movies_by_preference,
-    recommend_theaters_for_movie,
-    recommend_based_on_history
-)
+from src.tools.recommendation_tools import make_recommendation_tools
 from src.utils.logger import get_logger
-
+from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
@@ -32,20 +27,21 @@ Strict rules:
 - NEVER recommend movies not in the tool results — do not hallucinate titles
 """
 
-recommendation_react_agent = create_agent(
-    get_llm(),
-    tools=[
-        get_user_preferences,
-        recommend_movies_by_preference,
-        recommend_theaters_for_movie,
-        recommend_based_on_history
-    ],
-    system_prompt=SYSTEM_PROMPT
-)
-
 
 def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentState:
-    logger.info(f"recommendation agent called — user: {state.get('user_id')}")
+    user_id = state.get("user_id")
+    memory  = state.get("memory", {})
+    logger.info(f"recommendation agent called — user: {user_id}")
+
+    # Build tools bound to this user's context for this invocation
+    tools = make_recommendation_tools(user_id=user_id, memory=memory)
+
+    react_agent = create_agent(
+        get_llm(),
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        middleware=[trim_messages]
+    )
 
     input_messages = [
         m for m in state.get("messages", [])
@@ -53,7 +49,7 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
     ]
     agent_state = {**state, "messages": input_messages}
 
-    result = recommendation_react_agent.invoke(agent_state)
+    result = react_agent.invoke(agent_state)
 
     # extract recommendations from tool messages if present
     recommendations    = state.get("recommendations")
@@ -69,7 +65,7 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
 
     return {
         **state,
-        "messages":          result["messages"][len(input_messages):],
-        "recommendations":   recommendations,
+        "messages":           result["messages"][len(input_messages):],
+        "recommendations":    recommendations,
         "suggested_theaters": suggested_theaters
     }

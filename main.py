@@ -3,10 +3,11 @@ import logging
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, messages_to_dict, messages_from_dict
 from langgraph.types import Command
 from src.graph.graph import get_graph
 from src.utils.logger import get_logger
+from src.db.postgres import init_db, get_db_cursor
 
 # Initialize logger
 logger = get_logger("fastapi_app")
@@ -15,6 +16,9 @@ app = FastAPI(title="Movie Ticket Booking Chat API")
 
 # Initialize parent LangGraph compiled graph
 graph = get_graph()
+
+# Initialize Database Schema & Auto-seed preferences if empty
+init_db()
 
 
 class ChatRequest(BaseModel):
@@ -83,6 +87,44 @@ def get_active_interrupt(snapshot):
     return None
 
 
+def save_messages_to_postgress(user_id: str, thread_id: str, messages: list):
+    """Serialize and save/upsert the entire chat history for a session to Supabase."""
+    try:
+        serialized_messages = messages_to_dict(messages)
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO chat_messages (user_id, thread_id, messages, updated_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, thread_id) DO UPDATE
+                SET messages = EXCLUDED.messages, updated_at = CURRENT_TIMESTAMP;
+                """,
+                (user_id, thread_id, json.dumps(serialized_messages))
+            )
+        logger.info(f"Saved {len(messages)} messages to Supabase for user={user_id}, thread={thread_id}")
+    except Exception as e:
+        logger.error(f"Failed to save messages to Supabase: {e}", exc_info=True)
+
+
+def load_messages_from_postgress(user_id: str, thread_id: str) -> list:
+    """Load and deserialize chat history for a session from Supabase."""
+    try:
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT messages FROM chat_messages WHERE user_id = %s AND thread_id = %s;",
+                (user_id, thread_id)
+            )
+            row = cur.fetchone()
+            if row:
+                serialized = row[0]
+                if isinstance(serialized, str):
+                    serialized = json.loads(serialized)
+                return messages_from_dict(serialized)
+    except Exception as e:
+        logger.error(f"Failed to load messages from Supabase: {e}", exc_info=True)
+    return []
+
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
@@ -94,6 +136,20 @@ async def chat_endpoint(request: ChatRequest):
                 "user_id": request.user_id
             }
         }
+
+        # Check if Redis checkpointer has existing state
+        snapshot = graph.get_state(config)
+        if not snapshot.values.get("messages"):
+            # Redis cache miss — rehydrate from postgress if we have history
+            logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
+            db_messages = load_messages_from_postgress(request.user_id, request.thread_id)
+            if db_messages:
+                graph.update_state(config, {
+                    "messages": db_messages,
+                    "user_id": request.user_id,
+                    "thread_id": request.thread_id
+                })
+                logger.info(f"Rehydrated thread {request.thread_id} with {len(db_messages)} messages from Supabase")
 
         # Invoke the graph with user_id and the new user message
         graph.invoke(
@@ -109,7 +165,11 @@ async def chat_endpoint(request: ChatRequest):
         snapshot = graph.get_state(config)
         interrupt_info = get_active_interrupt(snapshot)
 
-        formatted_msgs = format_messages(snapshot.values.get("messages", []))
+        all_messages = snapshot.values.get("messages", [])
+        formatted_msgs = format_messages(all_messages)
+
+        # Persist updated message history to postgress
+        save_messages_to_postgress(request.user_id, request.thread_id, all_messages)
 
         if interrupt_info:
             logger.info(f"Graph paused at interrupt: {interrupt_info.get('message')}")
@@ -143,6 +203,20 @@ def get_chat_history(user_id: str, thread_id: str):
             }
         }
         snapshot = graph.get_state(config)
+
+        # Rehydrate from postgress if Redis cache has expired or is empty
+        if not snapshot.values.get("messages"):
+            logger.info(f"Redis cache miss for thread {thread_id} history request — fetching from Supabase")
+            db_messages = load_messages_from_postgress(user_id, thread_id)
+            if db_messages:
+                graph.update_state(config, {
+                    "messages": db_messages,
+                    "user_id": user_id,
+                    "thread_id": thread_id
+                })
+                logger.info(f"Rehydrated thread {thread_id} in checkpointer from Supabase")
+                snapshot = graph.get_state(config)
+
         formatted_msgs = format_messages(snapshot.values.get("messages", []))
         interrupt_info = get_active_interrupt(snapshot)
         return {
@@ -170,7 +244,21 @@ async def confirm_endpoint(request: ConfirmRequest):
             }
         }
 
+        # Check if Redis checkpointer has existing state
         snapshot = graph.get_state(config)
+        if not snapshot.values.get("messages"):
+            # Redis cache miss — rehydrate from Postgress if we have history
+            logger.info(f"Redis cache miss on confirm for thread {request.thread_id} — loading chat history from Supabase")
+            db_messages = load_messages_from_postgress(request.user_id, request.thread_id)
+            if db_messages:
+                graph.update_state(config, {
+                    "messages": db_messages,
+                    "user_id": request.user_id,
+                    "thread_id": request.thread_id
+                })
+                logger.info(f"Rehydrated thread {request.thread_id} on confirm from Supabase")
+                snapshot = graph.get_state(config)
+
         interrupt_info = get_active_interrupt(snapshot)
 
         if not interrupt_info:
@@ -193,7 +281,11 @@ async def confirm_endpoint(request: ConfirmRequest):
         new_snapshot = graph.get_state(config)
         new_interrupt_info = get_active_interrupt(new_snapshot)
 
-        formatted_msgs = format_messages(new_snapshot.values.get("messages", []))
+        all_messages = new_snapshot.values.get("messages", [])
+        formatted_msgs = format_messages(all_messages)
+
+        # Persist updated message history to postgress
+        save_messages_to_postgress(request.user_id, request.thread_id, all_messages)
 
         if new_interrupt_info:
             logger.info(f"Graph paused at subsequent interrupt: {new_interrupt_info.get('message')}")

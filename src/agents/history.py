@@ -1,14 +1,9 @@
 from langchain.agents import create_agent
 from src.agents.llm import get_llm
 from src.graph.state import HistoryAgentState
-from src.tools.history_tools import (
-    get_booking_history,
-    get_booking_by_id,
-    get_last_booking,
-    get_bookings_by_status
-)
+from src.tools.history_tools import make_history_tools
 from src.utils.logger import get_logger
-
+from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
@@ -38,20 +33,20 @@ Strict rules:
 - if no history found → tell user they have no bookings yet, suggest browsing movies
 """
 
-history_react_agent = create_agent(
-    get_llm(),
-    tools=[
-        get_booking_history,
-        get_booking_by_id,
-        get_last_booking,
-        get_bookings_by_status
-    ],
-    system_prompt=SYSTEM_PROMPT
-)
-
 
 def history_node(state: HistoryAgentState) -> HistoryAgentState:
-    logger.info(f"history agent called — user: {state.get('user_id')}")
+    user_id = state.get("user_id")
+    logger.info(f"history agent called — user: {user_id}")
+
+    # Build tools bound to this user's context for this invocation
+    tools = make_history_tools(user_id=user_id)
+
+    react_agent = create_agent(
+        get_llm(),
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        middleware=[trim_messages]
+    )
 
     input_messages = [
         m for m in state.get("messages", [])
@@ -59,5 +54,5 @@ def history_node(state: HistoryAgentState) -> HistoryAgentState:
     ]
     agent_state = {**state, "messages": input_messages}
 
-    result = history_react_agent.invoke(agent_state)
+    result = react_agent.invoke(agent_state)
     return {**state, "messages": result["messages"][len(input_messages):]}

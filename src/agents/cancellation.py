@@ -7,7 +7,7 @@ from src.tools.cancellation_tools import (
     process_refund
 )
 from src.utils.logger import get_logger
-
+from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
@@ -42,7 +42,8 @@ cancellation_react_agent = create_agent(
         prepare_cancellation,
         process_refund
     ],
-    system_prompt=SYSTEM_PROMPT
+    system_prompt=SYSTEM_PROMPT,
+    middleware=[trim_messages]
 )
 
 

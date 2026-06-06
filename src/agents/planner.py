@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage
 from src.agents.llm import get_llm
+from src.config.settings import settings
 from src.graph.state import BookingState
 from src.schemas.planner import PlannerResponse
 from src.config.constants import Intent
@@ -46,7 +47,7 @@ Rules:
 """
 
 def planner_node(state: BookingState) -> BookingState:
-    llm = get_llm()
+    llm = get_llm(structure=True)
     structured_llm = llm.with_structured_output(PlannerResponse)
 
     memory  = state.get("memory", {})
@@ -70,10 +71,69 @@ def planner_node(state: BookingState) -> BookingState:
             role = "user" if msg_type == "human" else "assistant"
             formatted_msgs.append({"role": role, "content": content})
 
-    response: PlannerResponse = structured_llm.invoke([
-        {"role": "system", "content": system_with_context},
-        *formatted_msgs
-    ])
+    # Keep only the last 10 messages to fit context window
+    if len(formatted_msgs) > 10:
+        formatted_msgs = formatted_msgs[-10:]
+
+    try:
+        response: PlannerResponse = structured_llm.invoke([
+            {"role": "system", "content": system_with_context},
+            *formatted_msgs
+        ])
+    except Exception as primary_exc:
+        logger.warning(f"Primary planner structured output failed: {primary_exc}. Trying Hugging Face fallback...")
+        if not settings.HF_TOKEN:
+            logger.error("HF_TOKEN is not configured. Cannot run planner fallback.")
+            raise primary_exc
+        
+        try:
+            from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+            import json
+            
+            llama_endpoint = HuggingFaceEndpoint(
+                repo_id=settings.FIRST_FALLBACK_LLM,
+                huggingfacehub_api_token=settings.HF_TOKEN,
+                max_new_tokens=512,
+                temperature=0.01
+            )
+            llama_model = ChatHuggingFace(llm=llama_endpoint)
+            
+            fallback_prompt = f"""{system_with_context}
+            
+            You must classify the user message and return your response as a valid JSON object matching this schema:
+            {{
+                "intent": "string (one of: search_movies, get_showtimes, book_tickets, select_seats, recommend_movies, cancel_booking, get_history, policy_query, unknown)",
+                "city": "string or null",
+                "movie_title": "string or null"
+            }}
+            
+            Return ONLY the raw JSON block. Do not write any explanations or conversational text.
+            """
+            
+            raw_response = llama_model.invoke([
+                {"role": "system", "content": fallback_prompt},
+                *formatted_msgs
+            ])
+            
+            content = raw_response.content.strip()
+            if content.startswith("```"):
+                lines = content.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+                
+            parsed = json.loads(content)
+            response = PlannerResponse(
+                intent=parsed.get("intent", "unknown"),
+                city=parsed.get("city"),
+                movie_title=parsed.get("movie_title")
+            )
+            logger.info("Successfully classified intent using Hugging Face fallback.")
+        except Exception as fallback_exc:
+            logger.error(f"Hugging Face planner fallback also failed: {fallback_exc}")
+            raise primary_exc
 
     next_agent = INTENT_TO_AGENT.get(response.intent, "unknown")
 
