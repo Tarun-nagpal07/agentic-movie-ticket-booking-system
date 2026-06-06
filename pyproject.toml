@@ -17,4 +17,5 @@ dependencies = [
     "qdrant-client>=1.18.0",
     "redis<8",
     "uvicorn>=0.48.0",
+    "langfuse>=2.0.0",
 ]

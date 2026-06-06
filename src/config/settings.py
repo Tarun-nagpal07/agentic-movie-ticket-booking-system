@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     HF_TOKEN: str = Field(default="")
     QDRANT_POLICY_COLLECTION: str = Field(default="policy_docs")
     QDRANT_MEMORY_COLLECTION: str = Field(default="session_memory")
-
+    LANGFUSE_SECRET_KEY: str = Field(default="")
+    LANGFUSE_PUBLIC_KEY: str = Field(default="")
+    LANGFUSE_BASE_URL: str = Field(default="https://cloud.langfuse.com")
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

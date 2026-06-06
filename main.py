@@ -3,7 +3,7 @@ import logging
 import queue
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, messages_to_dict, messages_from_dict
@@ -12,6 +12,7 @@ from langgraph.types import Command
 from src.graph.graph import get_graph
 from src.utils.logger import get_logger
 from src.db.postgres import init_db, get_db_cursor
+from src.utils.rate_limiter import RateLimiter
 
 # Initialize logger
 logger = get_logger("fastapi_app")
@@ -51,7 +52,7 @@ def home():
     return {"message": "Movie Booking Assistant Chat API is running."}
 
 
-@app.get("/movies")
+@app.get("/movies", dependencies=[Depends(RateLimiter(limit=20, window=60, scope="movies"))])
 def get_movies():
     try:
         with open("data/movies.json", "r", encoding="utf-8") as file:
@@ -129,6 +130,39 @@ def load_messages_from_postgress(user_id: str, thread_id: str) -> list:
     return []
 
 
+def get_langfuse_callback(user_id: str, thread_id: str):
+    """
+    Instantiates and returns the Langfuse CallbackHandler if API keys are set.
+    """
+    try:
+        from src.config.settings import settings
+    except ImportError:
+        logger.error("Could not import settings from src.config.settings")
+        return None
+
+    if settings.LANGFUSE_SECRET_KEY and settings.LANGFUSE_PUBLIC_KEY:
+        try:
+            from langfuse import Langfuse
+            from langfuse.langchain import CallbackHandler
+            
+            # Instantiate Langfuse client to register it under the public key in the global registry
+            _ = Langfuse(
+                public_key=settings.LANGFUSE_PUBLIC_KEY,
+                secret_key=settings.LANGFUSE_SECRET_KEY,
+                host=settings.LANGFUSE_BASE_URL or "https://cloud.langfuse.com"
+            )
+            
+            # Instantiate CallbackHandler using the public key
+            return CallbackHandler(
+                public_key=settings.LANGFUSE_PUBLIC_KEY
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Langfuse callback: {e}", exc_info=True)
+    return None
+
+
+
+
 class QueueCallbackHandler(BaseCallbackHandler):
     def __init__(self, q: queue.Queue):
         self.q = q
@@ -184,7 +218,7 @@ def run_graph_in_thread(inputs, config, q: queue.Queue):
         q.put(None)
 
 
-@app.post("/chat/stream")
+@app.post("/chat/stream", dependencies=[Depends(RateLimiter(limit=5, window=10, scope="chat"))])
 async def chat_stream_endpoint(request: ChatRequest):
     try:
         logger.info(f"Chat stream request received: user={request.user_id}, thread={request.thread_id}, msg='{request.message[:40]}'")
@@ -193,6 +227,10 @@ async def chat_stream_endpoint(request: ChatRequest):
             "configurable": {
                 "thread_id": request.thread_id,
                 "user_id": request.user_id
+            },
+            "metadata": {
+                "langfuse_user_id": request.user_id,
+                "langfuse_session_id": request.thread_id
             }
         }
         
@@ -217,7 +255,11 @@ async def chat_stream_endpoint(request: ChatRequest):
         # Create queue and handler
         q = queue.Queue()
         q.put({"type": "status", "content": "Initializing Cinemagic graph..."})
-        config["callbacks"] = [QueueCallbackHandler(q)]
+        callbacks = [QueueCallbackHandler(q)]
+        langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
+        if langfuse_cb:
+            callbacks.append(langfuse_cb)
+        config["callbacks"] = callbacks
         
         # Run graph in thread pool executor
         loop = asyncio.get_running_loop()
@@ -241,7 +283,7 @@ async def chat_stream_endpoint(request: ChatRequest):
         )
 
 
-@app.post("/chat")
+@app.post("/chat", dependencies=[Depends(RateLimiter(limit=5, window=10, scope="chat"))])
 async def chat_endpoint(request: ChatRequest):
     try:
         logger.info(f"Chat request received: user={request.user_id}, thread={request.thread_id}, msg='{request.message[:40]}'")
@@ -250,6 +292,10 @@ async def chat_endpoint(request: ChatRequest):
             "configurable": {
                 "thread_id": request.thread_id,
                 "user_id": request.user_id
+            },
+            "metadata": {
+                "langfuse_user_id": request.user_id,
+                "langfuse_session_id": request.thread_id
             }
         }
 
@@ -266,6 +312,11 @@ async def chat_endpoint(request: ChatRequest):
                     "thread_id": request.thread_id
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} with {len(db_messages)} messages from Supabase")
+
+        # Add Langfuse callback handler if available
+        langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
+        if langfuse_cb:
+            config["callbacks"] = [langfuse_cb]
 
         # Invoke the graph with user_id and the new user message
         graph.invoke(
@@ -309,7 +360,7 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 
-@app.get("/chat/history")
+@app.get("/chat/history", dependencies=[Depends(RateLimiter(limit=10, window=10, scope="history"))])
 def get_chat_history(user_id: str, thread_id: str):
     try:
         config = {
@@ -348,7 +399,7 @@ def get_chat_history(user_id: str, thread_id: str):
         )
 
 
-@app.post("/chat/confirm")
+@app.post("/chat/confirm", dependencies=[Depends(RateLimiter(limit=5, window=10, scope="confirm"))])
 async def confirm_endpoint(request: ConfirmRequest):
     try:
         logger.info(f"Confirm request received: user={request.user_id}, thread={request.thread_id}, decision={request.decision}")
@@ -357,6 +408,10 @@ async def confirm_endpoint(request: ConfirmRequest):
             "configurable": {
                 "thread_id": request.thread_id,
                 "user_id": request.user_id
+            },
+            "metadata": {
+                "langfuse_user_id": request.user_id,
+                "langfuse_session_id": request.thread_id
             }
         }
 
@@ -389,6 +444,11 @@ async def confirm_endpoint(request: ConfirmRequest):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Decision must be either 'Approve' or 'Reject'."
             )
+
+        # Add Langfuse callback handler if available
+        langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
+        if langfuse_cb:
+            config["callbacks"] = [langfuse_cb]
 
         # Resume graph execution with the decision
         graph.invoke(Command(resume=request.decision), config)

@@ -376,6 +376,17 @@ if is_interrupted and interrupt_payload:
                 if res.status_code == 200:
                     st.success("Approved successfully!")
                     st.rerun()
+                elif res.status_code == 429:
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ Rate Limit Exceeded
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            Too many requests. Please wait a few seconds before trying again.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
                     <div class="glass-error-card">
@@ -410,6 +421,17 @@ if is_interrupted and interrupt_payload:
                 if res.status_code == 200:
                     st.warning("Rejected/Cancelled draft booking.")
                     st.rerun()
+                elif res.status_code == 429:
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ Rate Limit Exceeded
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            Too many requests. Please wait a few seconds before trying again.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
                     <div class="glass-error-card">
@@ -497,6 +519,22 @@ if user_input:
                         """, unsafe_allow_html=True)
                     elif complete_payload:
                         st.rerun()
+                elif res.status_code == 429:
+                    status_placeholder.empty()
+                    try:
+                        detail = res.json().get("detail", "Too many requests.")
+                    except Exception:
+                        detail = res.text
+                    st.markdown(f"""
+                    <div class="glass-error-card">
+                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ⚠️ Rate Limit Exceeded
+                        </div>
+                        <div style="font-size: 0.9rem;">
+                            {detail} Please wait a few seconds before trying again.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
                     status_placeholder.empty()
                     # Handle non-200 responses gracefully
