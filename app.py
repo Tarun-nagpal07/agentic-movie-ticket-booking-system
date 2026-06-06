@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # API endpoint configurations
-API_BASE_URL = "http://127.0.0.1:8005"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8005")
 
 # Premium CSS styling with custom fonts, glassmorphism, and gradient banners
 st.markdown("""
