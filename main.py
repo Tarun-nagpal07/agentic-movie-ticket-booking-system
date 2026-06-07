@@ -360,6 +360,25 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 
+@app.get("/chat/threads", dependencies=[Depends(RateLimiter(limit=20, window=10, scope="threads"))])
+def get_chat_threads(user_id: str):
+    try:
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT thread_id FROM chat_messages WHERE user_id = %s ORDER BY thread_id;",
+                (user_id,)
+            )
+            rows = cur.fetchall()
+            threads = [row[0] for row in rows]
+            return {"threads": threads}
+    except Exception as e:
+        logger.error(f"Error fetching threads: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching threads: {str(e)}"
+        )
+
+
 @app.get("/chat/history", dependencies=[Depends(RateLimiter(limit=10, window=10, scope="history"))])
 def get_chat_history(user_id: str, thread_id: str):
     try:

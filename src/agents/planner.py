@@ -5,6 +5,8 @@ from src.graph.state import BookingState
 from src.schemas.planner import PlannerResponse
 from src.config.constants import Intent
 from src.utils.logger import get_logger
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+import json
 
 logger = get_logger(__name__)
 
@@ -87,8 +89,6 @@ def planner_node(state: BookingState) -> BookingState:
             raise primary_exc
         
         try:
-            from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
-            import json
             
             llama_endpoint = HuggingFaceEndpoint(
                 repo_id=settings.FIRST_FALLBACK_LLM,
@@ -156,12 +156,12 @@ def planner_node(state: BookingState) -> BookingState:
                 break
 
         refusal_prompt = f"""You are a helpful and polite movie ticket booking assistant.
-The user asked: "{user_message_content}"
-This request is off-topic or irrelevant to movie booking, showtimes, seats, ticket cancellations, or movie-theater policies.
-Politely inform the user that you can only assist with movie ticket booking related questions, and gently steer them back.
-Directly reference what they asked in a natural way so they know you understood their input, but explain why you cannot help with it.
-Keep your response friendly, concise, and helpful.
-"""
+            The user asked: "{user_message_content}"
+            This request is off-topic or irrelevant to movie booking, showtimes, seats, ticket cancellations, or movie-theater policies.
+            Politely inform the user that you can only assist with movie ticket booking related questions, and gently steer them back.
+            Directly reference what they asked in a natural way so they know you understood their input, but explain why you cannot help with it.
+            Keep your response friendly, concise, and helpful.
+            """
         refusal_response = llm.invoke([
             {"role": "system", "content": refusal_prompt}
         ])

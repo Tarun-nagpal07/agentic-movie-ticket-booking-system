@@ -107,8 +107,8 @@ else
       --name "$REDIS_CONTAINER" \
       -p 6379:6379 \
       --restart unless-stopped \
-      redis:7-alpine \
-      redis-server --appendonly yes > /dev/null
+      -e REDIS_ARGS="--appendonly yes" \
+      redis/redis-stack-server:latest > /dev/null
   fi
   success "Redis started on port 6379"
 fi

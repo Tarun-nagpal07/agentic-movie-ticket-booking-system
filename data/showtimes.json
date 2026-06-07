@@ -102,86 +102,12 @@
           "show_id": "s103",
           "movie_id": "m1",
           "theater_id": "t1",
-          "screen_no": 5,
-          "screen_name": "Recliner Lounge",
+          "screen_no": 3,
+          "screen_name": "Standard 1",
           "date": "2025-06-01",
           "time": "19:00",
-          "format": "Dolby",
-          "price": 550,
-          "seat_types": {
-            "E": "recliner"
-          },
-          "seats": {
-            "E1": "available",
-            "E2": "available",
-            "E3": "available",
-            "E4": "available",
-            "E5": "available",
-            "E6": "available",
-            "E7": "available",
-            "E8": "available"
-          }
-        }
-      ],
-      "m3": [
-        {
-          "show_id": "s104",
-          "movie_id": "m3",
-          "theater_id": "t1",
-          "screen_no": 1,
-          "screen_name": "IMAX Screen",
-          "date": "2025-06-01",
-          "time": "11:00",
-          "format": "IMAX",
-          "price": 500,
-          "seat_types": {
-            "A": "standard",
-            "B": "standard",
-            "C": "standard",
-            "D": "premium",
-            "E": "recliner"
-          },
-          "seats": {
-            "A1": "booked",
-            "A2": "booked",
-            "A3": "booked",
-            "A4": "booked",
-            "A5": "booked",
-            "B1": "booked",
-            "B2": "available",
-            "B3": "available",
-            "B4": "booked",
-            "B5": "booked",
-            "C1": "available",
-            "C2": "available",
-            "C3": "available",
-            "C4": "available",
-            "C5": "available",
-            "D1": "available",
-            "D2": "available",
-            "D3": "available",
-            "D4": "available",
-            "D5": "available",
-            "E1": "available",
-            "E2": "available",
-            "E3": "available",
-            "E4": "available",
-            "E5": "available",
-            "E6": "available",
-            "E7": "available",
-            "E8": "available"
-          }
-        },
-        {
-          "show_id": "s105",
-          "movie_id": "m3",
-          "theater_id": "t1",
-          "screen_no": 2,
-          "screen_name": "Dolby Screen",
-          "date": "2025-06-01",
-          "time": "18:00",
-          "format": "Dolby",
-          "price": 400,
+          "format": "standard",
+          "price": 250,
           "seat_types": {
             "A": "standard",
             "B": "standard",
@@ -221,17 +147,113 @@
           }
         }
       ],
-      "m4": [
+      "m5": [
+        {
+          "show_id": "s104",
+          "movie_id": "m5",
+          "theater_id": "t1",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "date": "2025-06-01",
+          "time": "11:00",
+          "format": "IMAX",
+          "price": 450,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "standard",
+            "D": "premium",
+            "E": "recliner"
+          },
+          "seats": {
+            "A1": "available",
+            "A2": "available",
+            "A3": "available",
+            "A4": "available",
+            "A5": "available",
+            "B1": "available",
+            "B2": "available",
+            "B3": "available",
+            "B4": "available",
+            "B5": "available",
+            "C1": "available",
+            "C2": "available",
+            "C3": "available",
+            "C4": "available",
+            "C5": "available",
+            "D1": "available",
+            "D2": "available",
+            "D3": "available",
+            "D4": "available",
+            "D5": "available",
+            "E1": "available",
+            "E2": "available",
+            "E3": "available",
+            "E4": "available",
+            "E5": "available",
+            "E6": "available",
+            "E7": "available",
+            "E8": "available"
+          }
+        },
+        {
+          "show_id": "s105",
+          "movie_id": "m5",
+          "theater_id": "t1",
+          "screen_no": 2,
+          "screen_name": "Dolby Screen",
+          "date": "2025-06-01",
+          "time": "18:00",
+          "format": "Dolby",
+          "price": 380,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "standard",
+            "D": "premium",
+            "E": "recliner"
+          },
+          "seats": {
+            "A1": "available",
+            "A2": "available",
+            "A3": "available",
+            "A4": "available",
+            "A5": "available",
+            "B1": "available",
+            "B2": "available",
+            "B3": "available",
+            "B4": "available",
+            "B5": "available",
+            "C1": "available",
+            "C2": "available",
+            "C3": "available",
+            "C4": "available",
+            "C5": "available",
+            "D1": "available",
+            "D2": "available",
+            "D3": "available",
+            "D4": "available",
+            "D5": "available",
+            "E1": "available",
+            "E2": "available",
+            "E3": "available",
+            "E4": "available",
+            "E5": "available",
+            "E6": "available",
+            "E7": "available",
+            "E8": "available"
+          }
+        },
         {
           "show_id": "s106",
-          "movie_id": "m4",
+          "movie_id": "m5",
           "theater_id": "t1",
-          "screen_no": 3,
-          "screen_name": "Standard 1",
+          "screen_no": 4,
+          "screen_name": "Standard 2",
           "date": "2025-06-01",
           "time": "15:00",
           "format": "standard",
-          "price": 300,
+          "price": 250,
           "seat_types": {
             "A": "standard",
             "B": "standard",
@@ -240,8 +262,8 @@
           },
           "seats": {
             "A1": "available",
-            "A2": "booked",
-            "A3": "booked",
+            "A2": "available",
+            "A3": "available",
             "A4": "available",
             "A5": "available",
             "B1": "available",
@@ -249,10 +271,10 @@
             "B3": "available",
             "B4": "available",
             "B5": "available",
-            "C1": "booked",
+            "C1": "available",
             "C2": "available",
             "C3": "available",
-            "C4": "booked",
+            "C4": "available",
             "C5": "available",
             "D1": "available",
             "D2": "available",
@@ -423,26 +445,10 @@
             "D": "premium"
           },
           "seats": {
-            "A1": "available",
-            "A2": "available",
-            "A3": "available",
-            "A4": "available",
-            "A5": "available",
-            "B1": "available",
-            "B2": "available",
-            "B3": "available",
-            "B4": "available",
-            "B5": "available",
-            "C1": "available",
-            "C2": "available",
-            "C3": "available",
-            "C4": "available",
-            "C5": "available",
-            "D1": "available",
-            "D2": "available",
-            "D3": "available",
-            "D4": "available",
-            "D5": "available"
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
           }
         }
       ],
@@ -464,26 +470,214 @@
             "D": "premium"
           },
           "seats": {
-            "A1": "booked",
-            "A2": "booked",
-            "A3": "available",
-            "A4": "available",
-            "A5": "available",
-            "B1": "available",
-            "B2": "available",
-            "B3": "available",
-            "B4": "available",
-            "B5": "available",
-            "C1": "available",
-            "C2": "available",
-            "C3": "available",
-            "C4": "available",
-            "C5": "available",
-            "D1": "available",
-            "D2": "available",
-            "D3": "available",
-            "D4": "available",
-            "D5": "available"
+            "A1": "booked", "A2": "booked", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
+          }
+        }
+      ]
+    },
+    "t4": {
+      "m1": [
+        {
+          "show_id": "s401",
+          "movie_id": "m1",
+          "theater_id": "t4",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "date": "2025-06-01",
+          "time": "13:00",
+          "format": "IMAX",
+          "price": 500,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium",
+            "D": "recliner"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
+          }
+        }
+      ],
+      "m7": [
+        {
+          "show_id": "s402",
+          "movie_id": "m7",
+          "theater_id": "t4",
+          "screen_no": 2,
+          "screen_name": "Dolby Screen",
+          "date": "2025-06-01",
+          "time": "18:00",
+          "format": "Dolby",
+          "price": 400,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium",
+            "D": "recliner"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
+          }
+        }
+      ]
+    },
+    "t5": {
+      "m2": [
+        {
+          "show_id": "s501",
+          "movie_id": "m2",
+          "theater_id": "t5",
+          "screen_no": 1,
+          "screen_name": "Dolby Screen",
+          "date": "2025-06-01",
+          "time": "14:00",
+          "format": "Dolby",
+          "price": 350,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available"
+          }
+        }
+      ],
+      "m8": [
+        {
+          "show_id": "s502",
+          "movie_id": "m8",
+          "theater_id": "t5",
+          "screen_no": 2,
+          "screen_name": "Standard 1",
+          "date": "2025-06-01",
+          "time": "20:00",
+          "format": "standard",
+          "price": 300,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available"
+          }
+        }
+      ]
+    },
+    "t6": {
+      "m5": [
+        {
+          "show_id": "s601",
+          "movie_id": "m5",
+          "theater_id": "t6",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "date": "2025-06-01",
+          "time": "12:30",
+          "format": "IMAX",
+          "price": 550,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available"
+          }
+        }
+      ]
+    },
+    "t7": {
+      "m7": [
+        {
+          "show_id": "s701",
+          "movie_id": "m7",
+          "theater_id": "t7",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "date": "2025-06-01",
+          "time": "15:00",
+          "format": "IMAX",
+          "price": 500,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium",
+            "D": "recliner"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
+          }
+        }
+      ]
+    },
+    "t9": {
+      "m3": [
+        {
+          "show_id": "s901",
+          "movie_id": "m3",
+          "theater_id": "t9",
+          "screen_no": 1,
+          "screen_name": "IMAX Screen",
+          "date": "2025-06-01",
+          "time": "10:30",
+          "format": "IMAX",
+          "price": 450,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium",
+            "D": "recliner"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
+          }
+        }
+      ],
+      "m4": [
+        {
+          "show_id": "s902",
+          "movie_id": "m4",
+          "theater_id": "t9",
+          "screen_no": 3,
+          "screen_name": "Dolby Screen",
+          "date": "2025-06-01",
+          "time": "16:30",
+          "format": "Dolby",
+          "price": 380,
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "premium",
+            "D": "recliner"
+          },
+          "seats": {
+            "A1": "available", "A2": "available", "A3": "available", "A4": "available", "A5": "available",
+            "B1": "available", "B2": "available", "B3": "available", "B4": "available", "B5": "available",
+            "C1": "available", "C2": "available", "C3": "available", "C4": "available", "C5": "available",
+            "D1": "available", "D2": "available", "D3": "available", "D4": "available", "D5": "available"
           }
         }
       ]

@@ -46,12 +46,12 @@ class theater_by_city(BaseModel):
 
 class movies_now_showing(BaseModel):
     theater_ids : list[str]
-    date : str | None 
+    date : str | None = None
 
 class showtimes_request(BaseModel):
     movie_id: str
     theater_id: str
-    date: str
+    date: str | None = None
 
 
 class seat_map_request(BaseModel):
@@ -73,7 +73,7 @@ class seats_available(BaseModel):
 
 class current_movies(BaseModel):
     city: str
-    date: str
+    date: str | None = None
 
 class RecommendMoviesRequest(BaseModel):
     genres: list[str]

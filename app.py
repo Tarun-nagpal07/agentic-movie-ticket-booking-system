@@ -201,11 +201,19 @@ def load_movies_db():
 if "user_id" not in st.session_state:
     st.session_state.user_id = "u1"
 
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = "session-101"
-
-if "threads" not in st.session_state:
-    st.session_state.threads = ["session-101"]
+# Helper to load user threads from backend
+def fetch_user_threads(user_id: str):
+    try:
+        url = f"{API_BASE_URL}/chat/threads"
+        res = requests.get(url, params={"user_id": user_id})
+        if res.status_code == 200:
+            threads = res.json().get("threads", [])
+            if not threads:
+                threads = ["session-101"]
+            return threads
+    except Exception:
+        pass
+    return ["session-101"]
 
 # Sync logic: loads history from FastAPI server
 def fetch_chat_history():
@@ -220,8 +228,31 @@ def fetch_chat_history():
         st.error(f"Failed to load chat history: {str(e)}")
     return [], False, None
 
-# Initialize history and state variables
-messages, is_interrupted, interrupt_payload = fetch_chat_history()
+# Load threads dynamically for the active user if not initialized
+if "threads" not in st.session_state:
+    st.session_state.threads = fetch_user_threads(st.session_state.user_id)
+
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = st.session_state.threads[0] if st.session_state.threads else "session-101"
+
+# Initialize or rehydrate messages/interrupt states in session state to cache results and prevent rate limits
+if (
+    "chat_history" not in st.session_state 
+    or "last_thread_id" not in st.session_state 
+    or st.session_state.last_thread_id != st.session_state.thread_id 
+    or "last_user_id" not in st.session_state 
+    or st.session_state.last_user_id != st.session_state.user_id
+):
+    messages, is_interrupted, interrupt_payload = fetch_chat_history()
+    st.session_state.chat_history = messages
+    st.session_state.is_interrupted = is_interrupted
+    st.session_state.interrupt_payload = interrupt_payload
+    st.session_state.last_thread_id = st.session_state.thread_id
+    st.session_state.last_user_id = st.session_state.user_id
+else:
+    messages = st.session_state.chat_history
+    is_interrupted = st.session_state.is_interrupted
+    interrupt_payload = st.session_state.interrupt_payload
 
 # ----------------- SIDEBAR: CONTROLS & SESSION PERSISTENCE -----------------
 with st.sidebar:
@@ -233,11 +264,21 @@ with st.sidebar:
     current_user = st.selectbox("Select User ID", options=user_options, index=user_options.index(st.session_state.user_id) if st.session_state.user_id in user_options else 0)
     if current_user != st.session_state.user_id:
         st.session_state.user_id = current_user
+        # Retrieve threads for the newly switched user
+        st.session_state.threads = fetch_user_threads(current_user)
+        st.session_state.thread_id = st.session_state.threads[0] if st.session_state.threads else "session-101"
+        # Reset chat cache so fetch_chat_history gets triggered next run
+        st.session_state.last_user_id = None 
         st.rerun()
 
     # Session / Thread Switcher
     st.markdown('<div class="glass-header" style="margin-top: 1rem;">🧵 Chat Threads</div>', unsafe_allow_html=True)
-    selected_thread = st.selectbox("Active Thread ID", options=st.session_state.threads)
+    
+    # Keep selectbox option list synchronized with state
+    if st.session_state.thread_id not in st.session_state.threads:
+        st.session_state.threads.append(st.session_state.thread_id)
+        
+    selected_thread = st.selectbox("Active Thread ID", options=st.session_state.threads, index=st.session_state.threads.index(st.session_state.thread_id) if st.session_state.thread_id in st.session_state.threads else 0)
     if selected_thread != st.session_state.thread_id:
         st.session_state.thread_id = selected_thread
         st.rerun()
@@ -374,6 +415,10 @@ if is_interrupted and interrupt_payload:
                     "decision": "Approve"
                 })
                 if res.status_code == 200:
+                    data = res.json()
+                    st.session_state.chat_history = data.get("messages", [])
+                    st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
+                    st.session_state.interrupt_payload = data.get("interrupt")
                     st.success("Approved successfully!")
                     st.rerun()
                 elif res.status_code == 429:
@@ -419,6 +464,10 @@ if is_interrupted and interrupt_payload:
                     "decision": "Reject"
                 })
                 if res.status_code == 200:
+                    data = res.json()
+                    st.session_state.chat_history = data.get("messages", [])
+                    st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
+                    st.session_state.interrupt_payload = data.get("interrupt")
                     st.warning("Rejected/Cancelled draft booking.")
                     st.rerun()
                 elif res.status_code == 429:
@@ -518,6 +567,9 @@ if user_input:
                         </div>
                         """, unsafe_allow_html=True)
                     elif complete_payload:
+                        st.session_state.chat_history = complete_payload.get("messages", [])
+                        st.session_state.is_interrupted = complete_payload.get("status") == "requires_confirmation"
+                        st.session_state.interrupt_payload = complete_payload.get("interrupt")
                         st.rerun()
                 elif res.status_code == 429:
                     status_placeholder.empty()
