@@ -382,6 +382,10 @@ def get_chat_threads(user_id: str):
 @app.get("/chat/history", dependencies=[Depends(RateLimiter(limit=10, window=10, scope="history"))])
 def get_chat_history(user_id: str, thread_id: str):
     try:
+        # ALWAYS fetch full history from PostgreSQL, not from trimmed state
+        # Middleware trims state for model input, but we must show complete history to frontend
+        db_messages = load_messages_from_postgress(user_id, thread_id)
+        
         config = {
             "configurable": {
                 "thread_id": thread_id,
@@ -389,22 +393,11 @@ def get_chat_history(user_id: str, thread_id: str):
             }
         }
         snapshot = graph.get_state(config)
-
-        # Rehydrate from postgress if Redis cache has expired or is empty
-        if not snapshot.values.get("messages"):
-            logger.info(f"Redis cache miss for thread {thread_id} history request — fetching from Supabase")
-            db_messages = load_messages_from_postgress(user_id, thread_id)
-            if db_messages:
-                graph.update_state(config, {
-                    "messages": db_messages,
-                    "user_id": user_id,
-                    "thread_id": thread_id
-                })
-                logger.info(f"Rehydrated thread {thread_id} in checkpointer from Supabase")
-                snapshot = graph.get_state(config)
-
-        formatted_msgs = format_messages(snapshot.values.get("messages", []))
         interrupt_info = get_active_interrupt(snapshot)
+
+        formatted_msgs = format_messages(db_messages) if db_messages else []
+        logger.info(f"Returning {len(formatted_msgs)} messages from PostgreSQL for user={user_id}, thread={thread_id}")
+        
         return {
             "status": "requires_confirmation" if interrupt_info else "success",
             "interrupt": interrupt_info,

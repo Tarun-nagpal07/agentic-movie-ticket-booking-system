@@ -44,13 +44,18 @@ def get_seat_map(theater_id: str, movie_id: str,show_id: str) -> dict:
 @handle_errors(error_class=ToolError)
 def get_seats_types_available(theater_id:str,movie_id:str,show_id:str,seat_type:list[str])->dict:
     """
-    Get available seats for a given showtime and seat type.
-    Use after get_movies_now_showing to find showtimes for a movie.
+    Get available seats filtered by row letter (not type name).
+    First call get_seat_map to see the seat_types mapping, then pass the
+    correct row letters for the type the user wants.
+
+    seat_types map example: {"A": "standard", "E": "recliner"}
+    → to get recliners pass seat_type=["E"], not seat_type=["recliner"]
+
     Args:
-        theater_id: ID of the theater
-        movie_id: ID of the movie
-        show_id: ID of the show
-        seat_type: List of seat_types ["A","B","C","D","E"]
+        theater_id: ID of the theater e.g. "t1"
+        movie_id: ID of the movie e.g. "m1"
+        show_id: ID of the show e.g. "s101"
+        seat_type: row LETTERS for desired type e.g. ["E"] for recliner, ["C","D"] for premium
     """
 
     showtimes_db = load_db(DBFile.SHOWTIMES)

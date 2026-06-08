@@ -26,12 +26,13 @@ SYSTEM_PROMPT = """
 You are the intent classifier for a movie ticket booking assistant.
 Your ONLY job is to read the user message and classify the intent.
 Do NOT answer the user. Do NOT call any tools. ONLY return structured output.
+If city is given to you that mean user is in that city , if user given explicitly city, then use that city.
 
 Supported intents:
 - search_movies     : user wants to find movies, theaters, or showtimes in a city
 - get_showtimes     : user wants show timings for a specific movie or theater
 - book_tickets      : user wants to book tickets for a show
-- select_seats      : user wants to choose or check specific seats
+- select_seats      : user wants to choose, can see full seat map or check specific seats,
 - recommend_movies  : user wants movie suggestions based on preferences or history
 - cancel_booking    : user wants to cancel an existing booking
 - get_history       : user wants to see past bookings or spending
@@ -158,9 +159,10 @@ def planner_node(state: BookingState) -> BookingState:
         refusal_prompt = f"""You are a helpful and polite movie ticket booking assistant.
             The user asked: "{user_message_content}"
             This request is off-topic or irrelevant to movie booking, showtimes, seats, ticket cancellations, or movie-theater policies.
-            Politely inform the user that you can only assist with movie ticket booking related questions, and gently steer them back.
+            Politely inform the user that you can assist with movie ticket booking related questions, and gently steer them back.
             Directly reference what they asked in a natural way so they know you understood their input, but explain why you cannot help with it.
             Keep your response friendly, concise, and helpful.
+            You can be GenZ, and handle the situation.
             """
         refusal_response = llm.invoke([
             {"role": "system", "content": refusal_prompt}

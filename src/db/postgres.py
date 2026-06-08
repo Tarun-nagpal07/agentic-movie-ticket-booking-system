@@ -17,11 +17,11 @@ def get_pool():
     
     db_url = settings.SUPABASE_DB_URL
     if not db_url:
-        logger.error("SUPABASE_DB_URL is not configured in settings/env.")
-        raise ValueError("SUPABASE_DB_URL settings is missing.")
+        logger.error("POSTGREL_DB_URL is not configured in settings/env.")
+        raise ValueError("POSTGREL_DB_URL settings is missing.")
     
     try:
-        logger.info("Initializing Supabase/PostgreSQL connection pool...")
+        logger.info("Initializing PostgreSQL connection pool...")
         # Min connections: 1, Max connections: 10
         _pool = psycopg2.pool.SimpleConnectionPool(1, 10, db_url)
         return _pool

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+sudo lsof -i :5432#!/usr/bin/env bash
 # ============================================================
 # docker_deploy.sh  —  Build, Push, Pull, and Run Movie Ticket Booking
 # ============================================================

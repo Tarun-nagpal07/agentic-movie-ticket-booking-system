@@ -223,7 +223,11 @@ def fetch_chat_history():
         res = requests.get(url, params=params)
         if res.status_code == 200:
             data = res.json()
-            return data.get("messages", []), data.get("status") == "requires_confirmation", data.get("interrupt")
+            # Always get full history from backend (PostgreSQL), not the trimmed state
+            messages = data.get("messages", [])
+            is_interrupted = data.get("status") == "requires_confirmation"
+            interrupt = data.get("interrupt")
+            return messages, is_interrupted, interrupt
     except Exception as e:
         st.error(f"Failed to load chat history: {str(e)}")
     return [], False, None
@@ -567,7 +571,21 @@ if user_input:
                         </div>
                         """, unsafe_allow_html=True)
                     elif complete_payload:
-                        st.session_state.chat_history = complete_payload.get("messages", [])
+                        # Always merge streamed AI message with full history from PostgreSQL.
+                        # Middleware may have trimmed the state, but we preserve everything here.
+                        server_msgs = complete_payload.get("messages", []) or []
+                        
+                        # Always append the streamed AI message if it was successfully generated
+                        if full_response:
+                            # Build final history: server messages + streamed AI response
+                            final_history = list(server_msgs)
+                            # Only add if not already in server response (avoid duplicates)
+                            if not final_history or final_history[-1].get("role") != "assistant":
+                                final_history.append({"role": "assistant", "content": full_response})
+                            st.session_state.chat_history = final_history
+                        else:
+                            st.session_state.chat_history = server_msgs
+
                         st.session_state.is_interrupted = complete_payload.get("status") == "requires_confirmation"
                         st.session_state.interrupt_payload = complete_payload.get("interrupt")
                         st.rerun()
