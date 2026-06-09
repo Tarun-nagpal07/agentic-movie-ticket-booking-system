@@ -218,6 +218,35 @@
       "booked_at": "2025-06-01T08:00:00Z",
       "refund_amount": null,
       "cancelled_at": null
+    },
+    "b_009": {
+      "booking_id": "b_009",
+      "user_id": "u1",
+      "movie_id": "m4",
+      "theater_id": "t3",
+      "screen_no": 1,
+      "screen_name": "Standard 1",
+      "show_id": "s301",
+      "show_date": "2025-06-01",
+      "show_time": "11:30",
+      "format": "standard",
+      "seats": [
+        "D1",
+        "D2"
+      ],
+      "seat_types": {
+        "A": "standard",
+        "B": "standard",
+        "C": "standard",
+        "D": "premium"
+      },
+      "num_tickets": 2,
+      "price_per_ticket": 280,
+      "total_price": 560,
+      "status": "cancelled",
+      "booked_at": "2025-06-01T08:00:00Z",
+      "refund_amount": 280.0,
+      "cancelled_at": "2025-06-01T08:00:00Z"
     }
   }
 }

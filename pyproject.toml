@@ -19,4 +19,6 @@ dependencies = [
     "uvicorn>=0.48.0",
     "langfuse>=2.0.0",
     "groq>=1.4.0",
+    "langchain-groq",
+    "streamlit",
 ]

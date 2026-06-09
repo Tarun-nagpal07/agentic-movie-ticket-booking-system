@@ -199,6 +199,11 @@
       "chunk_id": "p40",
       "topic": "general",
       "text": "Theater management may conduct random bag checks for security purposes. Refusal to comply will result in denial of entry without refund."
+    },
+    {
+      "chunk_id": "p41",
+      "topic": "booking",
+      "text": "Tickets can be booked in advance for shows scheduled up to 4 days from today (including today). Booking for shows beyond this 4-day window is not permitted."
     }
   ]
 }

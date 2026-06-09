@@ -9,6 +9,7 @@ from src.schemas.booking import (
     RefundResponse,
     GetBookingRequest
 )
+from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
 
 logger = get_logger(__name__)
 
@@ -39,6 +40,11 @@ def get_booking_by_id(booking_id:str) -> dict:
             code="BOOKING_ALREADY_CANCELLED",
             recoverable=False
         )
+
+    if not booking.get("movie_title") or booking.get("movie_title") == "Movie":
+        booking["movie_title"] = get_movie_title_by_id(booking.get("movie_id")) or "Movie"
+    if not booking.get("theater_name") or booking.get("theater_name") == "Theater":
+        booking["theater_name"] = get_theater_name_by_id(booking.get("theater_id")) or "Theater"
 
     logger.info(f"booking {booking_id} fetched")
     return {"status": "success", "booking": booking}
@@ -100,7 +106,9 @@ def prepare_cancellation(booking_id: str, reason: str = None) -> dict:
         "booking_id":    booking_id,
         "user_id":       booking["user_id"],
         "movie_id":      booking["movie_id"],
+        "movie_title":   booking.get("movie_title") or get_movie_title_by_id(booking.get("movie_id")) or "Movie",
         "theater_id":    booking["theater_id"],
+        "theater_name":  booking.get("theater_name") or get_theater_name_by_id(booking.get("theater_id")) or "Theater",
         "show_id":       booking["show_id"],
         "show_date":     booking["show_date"],
         "show_time":     booking["show_time"],

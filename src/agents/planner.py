@@ -42,12 +42,68 @@ Supported intents:
 Rules:
 - if city is not mentioned but user memory has a city → use memory city
 - if movie_title is partial (e.g. "that sci-fi one") → leave it None, agent will ask
-- if date is not mentioned → leave it None, tools default to today
+- you can book upto 4 days from now.
+- if movie_title is partial (e.g. "that sci-fi one") → leave it None, agent will ask
+- if date is not mentioned or if user asks for shows "today", "tonight", or "now" → leave the date field as null (None). Do not resolve it to a specific date string yourself.
+- if a specific relative date like "tomorrow", "day after tomorrow", "in 3 days", "in 4 days" or an absolute date is mentioned, extract it normalized (e.g. "tomorrow", "day after tomorrow"). If they misspelled it, extract the closest standard relative date token.
 - always classify to the most specific intent possible
 - "rebook" or "same as last time" → book_tickets intent
 - "what can I watch" or "suggest" → recommend_movies intent
 - "where can I watch X" → search_movies intent
 """
+
+def resolve_date_string(date_str: str | None) -> str:
+    from src.utils.date_utils import get_today
+    from datetime import datetime, timedelta
+    import re
+    
+    today_str = get_today()
+    if not date_str:
+        return today_str
+        
+    date_str_clean = date_str.lower().strip()
+    base_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    
+    # Check for relative keywords (more specific keywords checked first)
+    if "day after" in date_str_clean:
+        return (base_dt + timedelta(days=2)).strftime("%Y-%m-%d")
+    elif re.search(r"\b(t[om]{2,4}o?r{1,2}[ow]*|tmw)\b", date_str_clean):
+        return (base_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif re.search(r"\b(tod[aeiouy]{1,3}|tonig[ht]*|tonite)\b", date_str_clean):
+        return today_str
+    elif re.search(r"\b(3|three)\s+day", date_str_clean) or "in 3" in date_str_clean:
+        return (base_dt + timedelta(days=3)).strftime("%Y-%m-%d")
+    elif re.search(r"\b(4|four)\s+day", date_str_clean) or "in 4" in date_str_clean:
+        return (base_dt + timedelta(days=4)).strftime("%Y-%m-%d")
+        
+    # Match YYYY-MM-DD
+    match = re.search(r"\b\d{4}-\d{2}-\d{2}\b", date_str_clean)
+    if match:
+        return match.group(0)
+        
+    # Match MM-DD or MM/DD (assuming current base year)
+    match_short = re.search(r"\b(\d{1,2})[-/](\d{1,2})\b", date_str_clean)
+    if match_short:
+        month = int(match_short.group(1))
+        day = int(match_short.group(2))
+        return f"{base_dt.year}-{month:02d}-{day:02d}"
+        
+    # Match date patterns like "June 2", "2nd June", "June 2nd", "Jun 2"
+    months_map = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+        "january": 1, "february": 2, "march": 3, "april": 4, "june": 6,
+        "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12
+    }
+    
+    for mname, mnum in months_map.items():
+        if mname in date_str_clean:
+            day_match = re.search(r"\b(\d{1,2})(st|nd|rd|th)?\b", date_str_clean.replace(mname, ""))
+            if day_match:
+                day = int(day_match.group(1))
+                return f"{base_dt.year}-{mnum:02d}-{day:02d}"
+                
+    return date_str
 
 def planner_node(state: BookingState) -> BookingState:
     llm = get_llm(structure=True)
@@ -56,7 +112,10 @@ def planner_node(state: BookingState) -> BookingState:
     memory  = state.get("memory", {})
     messages = state.get("messages", [])
 
+    from src.utils.date_utils import get_today
     system_with_context = f"""{SYSTEM_PROMPT}
+
+                            Current date: {get_today()}
 
                             User context from memory:
                             - city: {memory.get("city", "unknown")}
@@ -74,9 +133,9 @@ def planner_node(state: BookingState) -> BookingState:
             role = "user" if msg_type == "human" else "assistant"
             formatted_msgs.append({"role": role, "content": content})
 
-    # Keep only the last 25 messages to fit context window
-    if len(formatted_msgs) > 25:
-        formatted_msgs = formatted_msgs[-25:]
+    # Keep only the last 15 messages to fit context window
+    if len(formatted_msgs) > 15:
+        formatted_msgs = formatted_msgs[-15:]
 
     try:
         response: PlannerResponse = structured_llm.invoke([
@@ -143,9 +202,10 @@ def planner_node(state: BookingState) -> BookingState:
     res = {
         "intent":      response.intent,
         "next_agent":  next_agent,
-        "city":        response.city or memory.get("city"),
-        "movie_title": response.movie_title,
-        "date":        '2025-06-01',
+        "city":        response.city or state.get("city") or memory.get("city"),
+        "movie_title": response.movie_title or state.get("movie_title"),
+        "date":        resolve_date_string(response.date or state.get("date")),
+        "redirect_to_planner": None,
     }
 
     if response.intent == Intent.UNKNOWN or next_agent == "unknown":

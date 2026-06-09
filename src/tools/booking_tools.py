@@ -5,7 +5,7 @@ from src.config.constants import DBFile,SeatStatus
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from src.utils.date_utils import get_today, get_now, is_show_in_future
-from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request, current_movies
+from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request
 from src.schemas.booking import BookingRequest
 
 logger = get_logger(__name__)
@@ -43,83 +43,6 @@ def get_theater_by_city(city: str) -> dict:
     logger.info(f"found {len(cleaned)} theaters in {city}")
     return {"status":"success","theaters":cleaned}
 
-
-@tool("get_movies", args_schema=current_movies)
-@handle_errors(error_class=ToolError)
-def get_movies_by_city(city: str, date: str | None = None) -> dict:
-    """
-    Use tool this when user asked which movies are showing in particular city.
-    you can use this directly to know which movies now showing in the theaters by city.
-    Get all movies currently showing in a city on a given date.
-
-    Args:
-        city: city name — ahmedabad, mumbai, delhi, bangalore
-        date: date in YYYY-MM-DD format. Defaults to today if not provided.
-    """
-    date = date or get_today()
-
-    theaters_db = load_db(DBFile.THEATERS)
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    movies_db = load_db(DBFile.MOVIES)
-
-    theaters = theaters_db["theaters"].get(city.lower())
-
-    if not theaters:
-        raise ToolError(
-            message=f"No theaters found in '{city}'.",
-            code="CITY_NOT_FOUND",
-            recoverable=True
-        )
-
-    movies_lookup = {
-        movie["movie_id"]: movie
-        for movie in movies_db["movies"]
-    }
-
-    movies_found = {}
-
-    for theater in theaters:
-        theater_id = theater["theater_id"]
-
-        theater_shows = showtimes_db["showtimes"].get(theater_id, {})
-
-        for movie_id, shows in theater_shows.items():
-
-            has_show_on_date = any(
-                show["date"] == date
-                for show in shows
-            )
-
-            if has_show_on_date and movie_id in movies_lookup:
-                m_info = movies_lookup[movie_id]
-                movies_found[movie_id] = {
-                    "movie_id": m_info["movie_id"],
-                    "title": m_info["title"],
-                    "genre": m_info.get("genre", []),
-                    "language": m_info.get("language", ""),
-                    "duration_min": m_info.get("duration_min"),
-                    "rating": m_info.get("rating")
-                }
-
-    if not movies_found:
-        raise ToolError(
-            message=f"No movies showing in {city} on {date}.",
-            code="NO_MOVIES_FOUND",
-            recoverable=True
-        )
-
-    logger.info(
-        f"found {len(movies_found)} movies in {city} on {date}"
-    )
-
-    return {
-        "status": "success",
-        "city": city,
-        "date": date,
-        "movies": list(movies_found.values())
-    }
-
-
 @tool("get_movies_now_showing",args_schema=movies_now_showing)
 @handle_errors(error_class=ToolError)
 def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
@@ -132,6 +55,8 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
         date: date in YYYY-MM-DD format. Defaults to today if not provided.
     """
     date = date or get_today()
+    from src.utils.id_cleaner import resolve_theater_id
+    theater_ids = [resolve_theater_id(tid) for tid in theater_ids if tid]
     showtimes_db = load_db(DBFile.SHOWTIMES)
     movies_db = load_db(DBFile.MOVIES)
 
@@ -202,19 +127,9 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
             movie_id = resolved_mid
             theater_id = resolved_tid
 
-    # 1. Resolve theater_id if passed as name
-    if theater_id not in db["showtimes"]:
-        theaters_db = load_db(DBFile.THEATERS)
-        resolved_tid = None
-        for city, theaters_list in theaters_db["theaters"].items():
-            for t in theaters_list:
-                if t["name"].lower() == theater_id.lower() or theater_id.lower() in t["name"].lower():
-                    resolved_tid = t["theater_id"]
-                    break
-            if resolved_tid:
-                break
-        if resolved_tid:
-            theater_id = resolved_tid
+    from src.utils.id_cleaner import resolve_theater_id, resolve_movie_id
+    theater_id = resolve_theater_id(theater_id)
+    movie_id = resolve_movie_id(movie_id)
 
     theater_shows = db["showtimes"].get(theater_id)
     if not theater_shows:
@@ -223,17 +138,6 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
             code="THEATER_NOT_FOUND",
             recoverable=True
         )
-
-    # 2. Resolve movie_id if passed as title
-    if movie_id not in theater_shows:
-        movies_db = load_db(DBFile.MOVIES)
-        resolved_mid = None
-        for m in movies_db["movies"]:
-            if m["title"].lower() == movie_id.lower() or movie_id.lower() in m["title"].lower():
-                resolved_mid = m["movie_id"]
-                break
-        if resolved_mid:
-            movie_id = resolved_mid
 
     movie_shows = theater_shows.get(movie_id)
     if not movie_shows:
@@ -316,6 +220,19 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
     if not show:
         raise BookingError(message=f"Show '{show_id}' not found.", code="SHOW_NOT_FOUND", recoverable=True)
 
+    # Date range validation: bookable dates are today to today + 3 days (inclusive)
+    from datetime import datetime, timedelta
+    show_date = show["date"]
+    today_str = get_today()
+    today_dt = datetime.strptime(today_str, "%Y-%m-%d")
+    max_date_dt = today_dt + timedelta(days=3)
+    max_date_str = max_date_dt.strftime("%Y-%m-%d")
+
+    if show_date < today_str:
+        raise BookingError(message=f"Booking is not allowed for dates before {today_str}.", code="INVALID_DATE", recoverable=False)
+    if show_date > max_date_str:
+        raise BookingError(message=f"Booking is only allowed up to 4 days from today ({today_str} to {max_date_str}).", code="INVALID_DATE", recoverable=False)
+
     if not is_show_in_future(show["date"], show["time"]):
         raise BookingError(message="Show has already started or passed.", code="SHOW_ALREADY_STARTED", recoverable=False)
 
@@ -327,11 +244,15 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
     booking_id  = f"b_{len(bookings_db['bookings']) + 1:03d}"
     total_price = show["price"] * num_tickets
 
+    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+
     draft = {
         "booking_id":       booking_id,
         "user_id":          user_id,
         "movie_id":         movie_id,
+        "movie_title":      get_movie_title_by_id(movie_id) or "Movie",
         "theater_id":       theater_id,
+        "theater_name":     get_theater_name_by_id(theater_id) or "Theater",
         "screen_no":        show["screen_no"],
         "screen_name":      show["screen_name"],
         "show_id":          show_id,
@@ -353,3 +274,9 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
 
     # return draft into state — graph confirm node handles the rest
     return {"status": "draft", "booking_draft": draft}
+
+# Enable graceful tool error catching for conversational agents
+get_theater_by_city.handle_tool_error = True
+get_movies_by_theaters.handle_tool_error = True
+get_showtimes.handle_tool_error = True
+book_tickets.handle_tool_error = True

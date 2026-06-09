@@ -21,12 +21,17 @@ class BookingState(TypedDict):
     city : str | None
     movie_title: str | None
     date : str | None
+    theater_id: str | None
+    movie_id: str | None
+    show_id: str | None
+    theater_name: str | None
 
     confirmed: bool | None                    # True/False after human-in-the-loop
 
     error_message: str | None
 
     thread_id: str | None                     # session/thread identifier
+    redirect_to_planner: bool | None          # redirect conversational interrupts to planner
 
 
 class BookingAgentState(TypedDict):
@@ -38,6 +43,12 @@ class BookingAgentState(TypedDict):
     user_id: str
 
     city: str | None                          # detected/extracted city
+    date: str | None
+    theater_id: str | None
+    movie_id: str | None
+    show_id: str | None
+    theater_name: str | None
+    movie_title: str | None
     search_results: list | None               # theaters or movies found
     selected_show: dict | None                # chosen showtime details
 
@@ -65,6 +76,14 @@ class SeatAgentState(TypedDict):
     """
     messages: Annotated[list, operator.add]
     user_id: str
+
+    city: str | None
+    date: str | None
+    theater_id: str | None
+    movie_id: str | None
+    show_id: str | None
+    theater_name: str | None
+    movie_title: str | None
 
     seat_map: dict | None                     # full seat layout with status
     available_seats: list | None              # filtered available seats

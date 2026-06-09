@@ -1,9 +1,10 @@
 import functools
 from src.utils.logger import get_logger 
+from langchain_core.tools import ToolException
 
 logger = get_logger(__name__)
 
-class MovieAgentError(Exception):
+class MovieAgentError(ToolException):
     """Base class for all custom exceptions in the movie agent system"""
     def __init__(self, message:str, code:str, recoverable:bool=True):
         self.message = message

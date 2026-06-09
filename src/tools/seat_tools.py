@@ -119,3 +119,8 @@ def get_seats_available(theater_id:str,movie_id:str,show_id:str,seats:list[str])
     
     logger.info(f"{len(seats_available)} seats available for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id} for seats: {seats}")
     return {"status":"success","available_seats": seats_available}
+
+# Enable graceful tool error catching for conversational agents
+get_seat_map.handle_tool_error = True
+get_seats_types_available.handle_tool_error = True
+get_seats_available.handle_tool_error = True

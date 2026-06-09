@@ -4,11 +4,19 @@ from src.graph.state import RecommendationAgentState
 from src.tools.recommendation_tools import make_recommendation_tools
 from src.utils.logger import get_logger
 from src.agents.middleware import trim_messages
+from src.utils.id_cleaner import remove_raw_ids
+from langchain_core.messages import AIMessage
+
 logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """
 You are a personalized movie recommendation assistant.
 You suggest movies based on what is currently showing and the user's taste.
+
+[CRITICAL RULE: CONCEAL ALL DATABASE IDS]
+- NEVER display, print, or mention raw database IDs (such as theater_id, movie_id, e.g. 't1', 'm2') in your final text responses or listings shown to the user.
+- If a tool returns IDs, keep them hidden in the background for tool calling purposes. ONLY present the readable theater names, movie titles, show times, and addresses to the user.
+- DO NOT print "(Theater ID: ...)" or "(Movie ID: ...)" or "(ID: ...)" in your output.
 
 Tools available and when to use them:
 - get_user_preferences          : ALWAYS call this first — gets city, genres, location, history
@@ -17,6 +25,7 @@ Tools available and when to use them:
 - recommend_theaters_for_movie  : ALWAYS call after picking top movie — finds nearest theaters
 
 Strict rules:
+- NEVER guess any movie titles, theater names, show times, locations, or ratings. ONLY use the exact values returned by the tools. If no movies or theaters are found, state that clearly instead of guessing/inventing them.
 - ALWAYS call get_user_preferences first, every time
 - ONLY recommend movies showing TODAY in user's city
 - for generic requests → recommend_movies_by_preference using memory genres
@@ -57,15 +66,40 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
 
     for msg in reversed(result["messages"]):
         content = getattr(msg, "content", None)
+        if isinstance(content, str):
+            import json
+            try:
+                content = json.loads(content)
+            except Exception:
+                pass
         if isinstance(content, dict):
             if "recommendations" in content:
                 recommendations = content["recommendations"]
             if "theaters" in content:
                 suggested_theaters = content["theaters"]
 
-    return {
+    returned_messages = result["messages"][len(input_messages):]
+    cleaned_messages = []
+    for msg in returned_messages:
+        if msg.type == "ai" and isinstance(msg.content, str):
+            cleaned_messages.append(AIMessage(
+                content=remove_raw_ids(msg.content),
+                id=getattr(msg, "id", None),
+                additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                response_metadata=getattr(msg, "response_metadata", {}),
+                tool_calls=getattr(msg, "tool_calls", [])
+            ))
+        else:
+            cleaned_messages.append(msg)
+
+    res = {
         **state,
-        "messages":           result["messages"][len(input_messages):],
+        "messages":           cleaned_messages,
         "recommendations":    recommendations,
         "suggested_theaters": suggested_theaters
     }
+    if recommendations and isinstance(recommendations, list) and len(recommendations) > 0:
+        top_movie = recommendations[0]
+        res["movie_id"] = top_movie.get("movie_id")
+        res["movie_title"] = top_movie.get("title")
+    return res

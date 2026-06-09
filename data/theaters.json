@@ -13,31 +13,31 @@
             "screen_no": 1,
             "name": "IMAX Screen",
             "format": "IMAX",
-            "capacity": 250
+            "capacity": 28
           },
           {
             "screen_no": 2,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 180
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           },
           {
             "screen_no": 4,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 150
+            "capacity": 20
           },
           {
             "screen_no": 5,
             "name": "Recliner Lounge",
             "format": "Dolby",
-            "capacity": 80
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -60,25 +60,25 @@
             "screen_no": 1,
             "name": "4DX Screen",
             "format": "4DX",
-            "capacity": 120
+            "capacity": 28
           },
           {
             "screen_no": 2,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 180
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Recliner Hall",
             "format": "standard",
-            "capacity": 90
+            "capacity": 20
           },
           {
             "screen_no": 4,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -100,19 +100,19 @@
             "screen_no": 1,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 160
+            "capacity": 20
           },
           {
             "screen_no": 2,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 160
+            "capacity": 20
           },
           {
             "screen_no": 3,
             "name": "Standard 3",
             "format": "standard",
-            "capacity": 140
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -135,25 +135,25 @@
             "screen_no": 1,
             "name": "IMAX Screen",
             "format": "IMAX",
-            "capacity": 300
+            "capacity": 20
           },
           {
             "screen_no": 2,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 200
+            "capacity": 20
           },
           {
             "screen_no": 3,
             "name": "Recliner Hall",
             "format": "Dolby",
-            "capacity": 90
+            "capacity": 28
           },
           {
             "screen_no": 4,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -175,19 +175,19 @@
             "screen_no": 1,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 180
+            "capacity": 15
           },
           {
             "screen_no": 2,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 160
+            "capacity": 15
           },
           {
             "screen_no": 3,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 160
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -208,19 +208,19 @@
             "screen_no": 1,
             "name": "IMAX Screen",
             "format": "IMAX",
-            "capacity": 280
+            "capacity": 15
           },
           {
             "screen_no": 2,
             "name": "Recliner Lounge",
             "format": "standard",
-            "capacity": 80
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -238,37 +238,37 @@
         "city": "delhi",
         "address": "Select Citywalk, Saket, Delhi",
         "latitude": 28.5274,
-        "longitude": 77.2190,
+        "longitude": 77.219,
         "screens": [
           {
             "screen_no": 1,
             "name": "IMAX Screen",
             "format": "IMAX",
-            "capacity": 300
+            "capacity": 20
           },
           {
             "screen_no": 2,
             "name": "4DX Screen",
             "format": "4DX",
-            "capacity": 120
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 200
+            "capacity": 28
           },
           {
             "screen_no": 4,
             "name": "Recliner Hall",
             "format": "standard",
-            "capacity": 90
+            "capacity": 28
           },
           {
             "screen_no": 5,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -285,31 +285,31 @@
         "city": "delhi",
         "address": "DLF Promenade, Vasant Kunj, Delhi",
         "latitude": 28.5214,
-        "longitude": 77.1580,
+        "longitude": 77.158,
         "screens": [
           {
             "screen_no": 1,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 180
+            "capacity": 28
           },
           {
             "screen_no": 2,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 160
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 160
+            "capacity": 28
           },
           {
             "screen_no": 4,
             "name": "Standard 3",
             "format": "standard",
-            "capacity": 140
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -333,37 +333,37 @@
             "screen_no": 1,
             "name": "IMAX Screen",
             "format": "IMAX",
-            "capacity": 300
+            "capacity": 20
           },
           {
             "screen_no": 2,
             "name": "4DX Screen",
             "format": "4DX",
-            "capacity": 120
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 200
+            "capacity": 20
           },
           {
             "screen_no": 4,
             "name": "Recliner Hall",
             "format": "Dolby",
-            "capacity": 90
+            "capacity": 28
           },
           {
             "screen_no": 5,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           },
           {
             "screen_no": 6,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 150
+            "capacity": 28
           }
         ],
         "amenities": [
@@ -386,25 +386,25 @@
             "screen_no": 1,
             "name": "Dolby Screen",
             "format": "Dolby",
-            "capacity": 200
+            "capacity": 28
           },
           {
             "screen_no": 2,
             "name": "Standard 1",
             "format": "standard",
-            "capacity": 160
+            "capacity": 28
           },
           {
             "screen_no": 3,
             "name": "Standard 2",
             "format": "standard",
-            "capacity": 160
+            "capacity": 28
           },
           {
             "screen_no": 4,
             "name": "Standard 3",
             "format": "standard",
-            "capacity": 140
+            "capacity": 28
           }
         ],
         "amenities": [

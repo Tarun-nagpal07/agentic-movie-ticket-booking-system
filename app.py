@@ -197,9 +197,39 @@ def load_movies_db():
             return []
     return []
 
+def load_theaters_db():
+    path = "data/theaters.json"
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f).get("theaters", {})
+        except Exception:
+            return {}
+    return {}
+
+def get_movie_title(movie_id: str) -> str:
+    movies = load_movies_db()
+    for m in movies:
+        if m.get("movie_id") == movie_id:
+            return m.get("title", "Unknown Movie")
+    return "Unknown Movie"
+
+def get_theater_name(theater_id: str) -> str:
+    theaters = load_theaters_db()
+    for city, theater_list in theaters.items():
+        for t in theater_list:
+            if t.get("theater_id") == theater_id:
+                return t.get("name", "Unknown Theater")
+    return "Unknown Theater"
+
 # ----------------- SESSION MANAGEMENT -----------------
 if "user_id" not in st.session_state:
     st.session_state.user_id = "u1"
+
+# Check if we have a pending user input from a previous redirection (to clear the active interrupt)
+user_input_from_state = None
+if "pending_user_input" in st.session_state:
+    user_input_from_state = st.session_state.pop("pending_user_input")
 
 # Helper to load user threads from backend
 def fetch_user_threads(user_id: str):
@@ -309,14 +339,16 @@ with st.sidebar:
         user_bookings.sort(key=lambda x: x.get("booked_at", ""), reverse=True)
         for b in user_bookings:
             status_class = f"status-{b.get('status', 'confirmed')}"
+            movie_title = b.get('movie_title') or get_movie_title(b.get('movie_id'))
+            theater_name = b.get('theater_name') or get_theater_name(b.get('theater_id'))
             st.markdown(f"""
             <div style="padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:600; color:#FFFFFF;">{b.get('movie_title')}</span>
+                    <span style="font-weight:600; color:#FFFFFF;">{movie_title}</span>
                     <span class="status-badge {status_class}">{b.get('status')}</span>
                 </div>
                 <div style="font-size:0.8rem; color:#8E8EA8; margin-top:0.25rem;">
-                    📍 {b.get('theater_name')} | ID: <code>{b.get('booking_id')}</code><br>
+                    📍 {theater_name} | ID: <code>{b.get('booking_id')}</code><br>
                     🗓️ {b.get('show_date')} at {b.get('show_time')}<br>
                     💺 Seats: {', '.join(b.get('seats', []))} | Total: ₹{b.get('total_price')}
                 </div>
@@ -354,7 +386,10 @@ chat_container = st.container()
 
 with chat_container:
     # Filter out empty or raw tool message payloads from the frontend rendering
-    rendered_messages = [m for m in messages if m.get("role") in ("user", "assistant")]
+    rendered_messages = [
+        m for m in messages 
+        if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
+    ]
     
     for msg in rendered_messages:
         role = msg.get("role")
@@ -513,7 +548,18 @@ if is_interrupted and interrupt_payload:
 # User Chat Input
 user_input = st.chat_input("Ask Cinemagic to search, book, recommend, cancel, or look up policies...")
 
+if user_input_from_state:
+    user_input = user_input_from_state
+
 if user_input:
+    # If the user is submitting a new message while an interrupt is active,
+    # immediately clear the interrupt and rerun to hide the confirmation box from the screen
+    if st.session_state.is_interrupted:
+        st.session_state.pending_user_input = user_input
+        st.session_state.is_interrupted = False
+        st.session_state.interrupt_payload = None
+        st.rerun()
+
     # Append user message and stream assistant reply inside the chat container
     with chat_container:
         with st.chat_message("user"):

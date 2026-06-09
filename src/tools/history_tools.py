@@ -11,6 +11,15 @@ from src.schemas.booking import (
 logger = get_logger(__name__)
 
 
+def _populate_booking_names(booking: dict) -> dict:
+    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+    if not booking.get("movie_title") or booking.get("movie_title") == "Movie":
+        booking["movie_title"] = get_movie_title_by_id(booking.get("movie_id")) or "Movie"
+    if not booking.get("theater_name") or booking.get("theater_name") == "Theater":
+        booking["theater_name"] = get_theater_name_by_id(booking.get("theater_id")) or "Theater"
+    return booking
+
+
 def make_history_tools(user_id: str):
     """
     Factory that returns history tools bound to a specific user_id.
@@ -48,6 +57,9 @@ def make_history_tools(user_id: str):
             reverse=True
         )[:limit]
 
+        for b in sorted_bookings:
+            _populate_booking_names(b)
+
         logger.info(f"found {len(sorted_bookings)} bookings for user {user_id}")
         return {
             "status":   "success",
@@ -76,6 +88,7 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
+        _populate_booking_names(booking)
         logger.info(f"booking {booking_id} fetched")
         return {"status": "success", "booking": booking}
 
@@ -102,6 +115,7 @@ def make_history_tools(user_id: str):
             )
 
         last = max(confirmed, key=lambda b: b["booked_at"])
+        _populate_booking_names(last)
 
         logger.info(f"last booking for user {user_id} is {last['booking_id']}")
         return {
@@ -142,6 +156,8 @@ def make_history_tools(user_id: str):
             )
 
         sorted_bookings = sorted(filtered, key=lambda b: b["booked_at"], reverse=True)
+        for b in sorted_bookings:
+            _populate_booking_names(b)
 
         logger.info(f"found {len(sorted_bookings)} {status} bookings for user {user_id}")
         return {

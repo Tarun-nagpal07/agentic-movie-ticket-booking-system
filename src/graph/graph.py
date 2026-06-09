@@ -13,6 +13,11 @@ from src.graph.nodes.cancel_confirm import cancel_confirm_node
 from src.graph.router import route_agent
 from src.memory.short_term import get_checkpointer
 
+def route_confirm_node(state: dict) -> str:
+    if state.get("redirect_to_planner"):
+        return "planner"
+    return "memory_write"
+
 def get_graph():
     # Initialize StateGraph with our parent state schema
     builder = StateGraph(BookingState)
@@ -53,12 +58,27 @@ def get_graph():
     # Route agent nodes to their next steps
     # Booking agent leads to confirmation (HITL check)
     builder.add_edge("booking_node", "confirm_node")
-    # After confirmation step, memory write runs to save new preferences/bookings
-    builder.add_edge("confirm_node", "memory_write")
+    # After confirmation step, memory write runs or we route back to planner if interrupted
+    builder.add_conditional_edges(
+        "confirm_node",
+        route_confirm_node,
+        {
+            "planner": "planner",
+            "memory_write": "memory_write"
+        }
+    )
 
     # Cancellation agent leads to cancel confirmation (HITL check)
     builder.add_edge("cancellation_node", "cancel_confirm_node")
-    builder.add_edge("cancel_confirm_node", "memory_write")
+    # After cancellation confirmation step, memory write runs or we route back to planner if interrupted
+    builder.add_conditional_edges(
+        "cancel_confirm_node",
+        route_confirm_node,
+        {
+            "planner": "planner",
+            "memory_write": "memory_write"
+        }
+    )
 
     # Recommendation leads to memory write to record user interests/genres
     builder.add_edge("recommendation_node", "memory_write")

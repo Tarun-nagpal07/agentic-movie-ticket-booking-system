@@ -71,10 +71,6 @@ class seats_available(BaseModel):
     show_id:str
     seats: list[str]
 
-class current_movies(BaseModel):
-    city: str
-    date: str | None = None
-
 class RecommendMoviesRequest(BaseModel):
     genres: list[str]
     city: str
