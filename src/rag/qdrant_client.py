@@ -26,8 +26,7 @@ def ensure_collections() -> None:
     client = get_qdrant_client()
 
     for collection_name in [
-        QdrantCollection.POLICY_DOCS,
-        QdrantCollection.SESSION_MEMORY
+        QdrantCollection.POLICY_DOCS
     ]:
         existing = [c.name for c in client.get_collections().collections]
 

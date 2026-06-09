@@ -26,13 +26,13 @@ def get_llm(structure: bool = False):
                 groq_llm = ChatGroq(
                     model=settings.FIRST_FALLBACK_LLM,
                     api_key=settings.GROQ_API_KEY,
-                    max_completion_tokens=512,
+                    max_tokens=512,
                     streaming=True,
-                    reasoning_effort='low',
+                    reasoning_effort='none',
                 )
                 fallbacks.append(groq_llm)
         except Exception as e:
-            logger.error(f"Failed to initialize Quen via Groq fallback: {e}")
+            logger.error(f"Failed to initialize Qwen via Groq fallback: {e}")
 
 
     # Hugging Face serverless endpoints do not support Pydantic schema function calling (with_structured_output)

@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field(default="")
     HF_TOKEN: str = Field(default="")
     QDRANT_POLICY_COLLECTION: str = Field(default="policy_docs")
-    QDRANT_MEMORY_COLLECTION: str = Field(default="session_memory")
     LANGFUSE_SECRET_KEY: str = Field(default="")
     LANGFUSE_PUBLIC_KEY: str = Field(default="")
     LANGFUSE_BASE_URL: str = Field(default="https://cloud.langfuse.com")

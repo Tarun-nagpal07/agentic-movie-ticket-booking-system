@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 def trim_messages(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
     """
     LangChain/LangGraph agent middleware to keep only the first message (system prompt)
-    and the last 10 messages of conversation history.
+    and the last 25 messages of conversation history.
     """
     messages = state.get("messages", [])
     print(f"--- MIDDLEWARE TRIGGERED --- Messages count: {len(messages)}")
@@ -18,12 +18,12 @@ def trim_messages(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
     if not messages:
         return None
 
-    # Trim only if we exceed 11 messages (1 system prompt + 10 conversation messages)
-    if len(messages) <= 11:
+    # Trim only if we exceed 26 messages (1 system prompt + 25 conversation messages)
+    if len(messages) <= 26:
         return None
 
     system_msg = messages[0]
-    recent_messages = messages[-10:]
+    recent_messages = messages[-25:]
     new_messages = [system_msg] + recent_messages
 
     logger.info(f"trim_messages middleware: Pruning conversation messages from {len(messages)} to {len(new_messages)} messages.")

@@ -49,7 +49,6 @@ class RefundPolicy:
 
 class QdrantCollection:
     POLICY_DOCS     = "policy_docs"
-    SESSION_MEMORY  = "session_memory"
 
 class RedisPrefix:
     USER        = "user:"           # user:{user_id}

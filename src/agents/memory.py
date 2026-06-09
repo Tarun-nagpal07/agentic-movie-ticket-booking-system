@@ -1,6 +1,5 @@
 from src.graph.state import MemoryAgentState, BookingState
 from src.memory.long_term import get_user_memory, update_user_memory
-from src.memory.episodic import summarize_session, store_session_summary
 from src.db.json_store import load_db, save_db
 from src.config.constants import DBFile
 from src.utils.logger import get_logger
@@ -12,21 +11,18 @@ def memory_read_node(state: BookingState) -> BookingState:
     """
     Runs at graph START on every turn.
 
-    Optimization — skip expensive Redis + Qdrant reads after the first turn:
+    Optimization — skip expensive Redis reads after the first turn:
     - LangGraph's checkpointer already persists the full BookingState (including
-      `memory` and `past_sessions`) between turns via Redis.
+      `memory`) between turns via Redis.
     - So on turn 2+ the checkpoint already carries these values — no need to
-      re-read from the separate user:{user_id} key or re-query Qdrant.
+      re-read from the separate user:{user_id} key.
     - Only do the full load when the session is fresh (memory not yet in state).
     """
-    from src.memory.episodic import get_relevant_sessions
-
     user_id  = state["user_id"]
-    messages = state.get("messages", [])
 
     # ── Already loaded from a previous turn's checkpoint — skip ──────────────
     if state.get("memory"):
-        logger.info(f"memory_read: state already has memory for user {user_id} — skipping Redis/Qdrant load")
+        logger.info(f"memory_read: state already has memory for user {user_id} — skipping load")
         return {}   # no state changes needed; checkpoint carries everything
 
     # ── Fresh session — load from PostgreSQL (long-term store) ───────────────
@@ -39,22 +35,9 @@ def memory_read_node(state: BookingState) -> BookingState:
         users_db    = load_db(DBFile.USERS)
         user_memory = users_db["users"].get(user_id)
 
-    # ── Fetch relevant past sessions from Qdrant (once per fresh session) ────
-    last_message = ""
-    for m in reversed(messages):
-        content = getattr(m, "content", None)
-        if isinstance(content, str):
-            last_message = content
-            break
-
-    past_sessions = []
-    if last_message:
-        past_sessions = get_relevant_sessions(user_id, last_message)
-
-    logger.info(f"memory_read complete for user {user_id}: loaded memory + {len(past_sessions)} past sessions")
+    logger.info(f"memory_read complete for user {user_id}: loaded memory")
     return {
-        "memory":        user_memory or {},
-        "past_sessions": past_sessions
+        "memory":        user_memory or {}
     }
 
 
@@ -129,13 +112,5 @@ def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:
                 current[key] = value
         users_db["users"][user_id] = current
         save_db(DBFile.USERS, users_db)
-
-    # ── episodic summary — only on meaningful events (booking/cancellation) ───
-    # Avoids an LLM call + Qdrant upsert on every simple chat turn
-    if messages:
-        summary = summarize_session(messages)
-        if summary:
-            store_session_summary(user_id, thread_id, summary)
-            logger.info(f"memory_write: session summary stored for user {user_id}")
 
     return {}

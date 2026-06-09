@@ -74,9 +74,9 @@ def planner_node(state: BookingState) -> BookingState:
             role = "user" if msg_type == "human" else "assistant"
             formatted_msgs.append({"role": role, "content": content})
 
-    # Keep only the last 10 messages to fit context window
-    if len(formatted_msgs) > 10:
-        formatted_msgs = formatted_msgs[-10:]
+    # Keep only the last 25 messages to fit context window
+    if len(formatted_msgs) > 25:
+        formatted_msgs = formatted_msgs[-25:]
 
     try:
         response: PlannerResponse = structured_llm.invoke([
