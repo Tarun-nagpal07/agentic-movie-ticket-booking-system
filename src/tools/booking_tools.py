@@ -48,6 +48,8 @@ def get_theater_by_city(city: str) -> dict:
 @handle_errors(error_class=ToolError)
 def get_movies_by_city(city: str, date: str | None = None) -> dict:
     """
+    Use tool this when user asked which movies are showing in particular city.
+    you can use this directly to know which movies now showing in the theaters by city.
     Get all movies currently showing in a city on a given date.
 
     Args:

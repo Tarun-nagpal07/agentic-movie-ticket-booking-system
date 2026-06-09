@@ -92,7 +92,7 @@ def planner_node(state: BookingState) -> BookingState:
         try:
             
             llama_endpoint = HuggingFaceEndpoint(
-                repo_id=settings.FIRST_FALLBACK_LLM,
+                repo_id=settings.SECOND_FALLBACK_LLM,
                 huggingfacehub_api_token=settings.HF_TOKEN,
                 max_new_tokens=512,
                 temperature=0.01
