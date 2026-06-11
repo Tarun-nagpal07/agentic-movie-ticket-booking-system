@@ -223,6 +223,24 @@ def get_theater_name(theater_id: str) -> str:
     return "Unknown Theater"
 
 # ----------------- SESSION MANAGEMENT -----------------
+import random
+
+def generate_random_thread_name():
+    adjectives = [
+        "Cosmic", "Star", "Super", "Mega", "Hyper", "Quantum", "Neon", "Cyber", 
+        "Ultra", "Apex", "Sonic", "Pulse", "Aero", "Solar", "Lunar", "Vortex", 
+        "Cinema", "Screen", "Ticket", "Show", "Popcorn", "Reel", "Pixel", "Vista"
+    ]
+    nouns = [
+        "Lounge", "Portal", "Hub", "Zone", "Club", "Room", "Base", "Nexus", 
+        "Sphere", "Cine", "Pass", "Seat", "Show", "Gate", "Line", "Foyer", 
+        "Box", "Hall", "Row"
+    ]
+    adj = random.choice(adjectives)
+    noun = random.choice(nouns)
+    num = random.randint(100, 999)
+    return f"{adj}-{noun}-{num}"
+
 if "user_id" not in st.session_state:
     st.session_state.user_id = "u1"
 
@@ -238,12 +256,10 @@ def fetch_user_threads(user_id: str):
         res = requests.get(url, params={"user_id": user_id})
         if res.status_code == 200:
             threads = res.json().get("threads", [])
-            if not threads:
-                threads = ["session-101"]
             return threads
     except Exception:
         pass
-    return ["session-101"]
+    return []
 
 # Sync logic: loads history from FastAPI server
 def fetch_chat_history():
@@ -267,7 +283,7 @@ if "threads" not in st.session_state:
     st.session_state.threads = fetch_user_threads(st.session_state.user_id)
 
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = st.session_state.threads[0] if st.session_state.threads else "session-101"
+    st.session_state.thread_id = generate_random_thread_name()
 
 # Initialize or rehydrate messages/interrupt states in session state to cache results and prevent rate limits
 if (
@@ -300,7 +316,8 @@ with st.sidebar:
         st.session_state.user_id = current_user
         # Retrieve threads for the newly switched user
         st.session_state.threads = fetch_user_threads(current_user)
-        st.session_state.thread_id = st.session_state.threads[0] if st.session_state.threads else "session-101"
+        # Generate new random thread for clean chat by default on user switch
+        st.session_state.thread_id = generate_random_thread_name()
         # Reset chat cache so fetch_chat_history gets triggered next run
         st.session_state.last_user_id = None 
         st.rerun()
@@ -308,22 +325,125 @@ with st.sidebar:
     # Session / Thread Switcher
     st.markdown('<div class="glass-header" style="margin-top: 1rem;">🧵 Chat Threads</div>', unsafe_allow_html=True)
     
-    # Keep selectbox option list synchronized with state
-    if st.session_state.thread_id not in st.session_state.threads:
-        st.session_state.threads.append(st.session_state.thread_id)
-        
-    selected_thread = st.selectbox("Active Thread ID", options=st.session_state.threads, index=st.session_state.threads.index(st.session_state.thread_id) if st.session_state.thread_id in st.session_state.threads else 0)
-    if selected_thread != st.session_state.thread_id:
-        st.session_state.thread_id = selected_thread
+    # Initialize renaming states
+    if "renaming_thread" not in st.session_state:
+        st.session_state.renaming_thread = None
+    if "renaming_active_unsaved" not in st.session_state:
+        st.session_state.renaming_active_unsaved = False
+
+    # Update local threads cache
+    st.session_state.threads = fetch_user_threads(st.session_state.user_id)
+    db_threads = [t for t in st.session_state.threads if t]
+
+    if st.session_state.renaming_active_unsaved:
+        col_new_act, col_save_act, col_cancel_act = st.columns([6, 1.5, 1.5])
+        with col_new_act:
+            new_act_name = st.text_input("Active name", value=st.session_state.thread_id, key="new_active_name_input", label_visibility="collapsed")
+        with col_save_act:
+            if st.button("💾", key="save_active_unsaved"):
+                new_act_stripped = new_act_name.strip()
+                if new_act_stripped:
+                    st.session_state.thread_id = new_act_stripped
+                st.session_state.renaming_active_unsaved = False
+                st.rerun()
+        with col_cancel_act:
+            if st.button("❌", key="cancel_active_unsaved"):
+                st.session_state.renaming_active_unsaved = False
+                st.rerun()
+    else:
+        col_act, col_act_edit = st.columns([5, 1])
+        with col_act:
+            st.markdown(f"**Active Chat:** `{st.session_state.thread_id}`")
+        with col_act_edit:
+            # If the current thread is not saved yet, let user rename it locally
+            if st.session_state.thread_id not in db_threads:
+                if st.button("✏️", key="edit_active_unsaved_btn", help="Rename active unsaved thread"):
+                    st.session_state.renaming_active_unsaved = True
+                    st.rerun()
+    
+    # Button to start a new clean chat thread
+    if st.button("➕ New Chat Thread", use_container_width=True):
+        st.session_state.thread_id = generate_random_thread_name()
+        # Reset chat history cache
+        st.session_state.chat_history = []
+        st.session_state.is_interrupted = False
+        st.session_state.interrupt_payload = None
+        st.session_state.renaming_thread = None
+        st.session_state.renaming_active_unsaved = False
         st.rerun()
 
-    # Create new thread
-    new_thread_input = st.text_input("New Thread Name", placeholder="e.g. booking-weekend")
-    if st.button("➕ Create Thread", use_container_width=True):
-        if new_thread_input and new_thread_input not in st.session_state.threads:
-            st.session_state.threads.append(new_thread_input)
-            st.session_state.thread_id = new_thread_input
-            st.rerun()
+    if db_threads:
+        st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; margin-bottom: 0.5rem;">Saved Chats:</div>', unsafe_allow_html=True)
+        with st.container(height=200):
+            for t in db_threads:
+                if st.session_state.renaming_thread == t:
+                    col_input, col_save, col_cancel = st.columns([6, 1.5, 1.5])
+                    with col_input:
+                        new_name = st.text_input("Rename to", value=t, key=f"rename_input_{t}", label_visibility="collapsed")
+                    with col_save:
+                        if st.button("💾", key=f"rename_save_{t}", use_container_width=True):
+                            new_name_stripped = new_name.strip()
+                            if new_name_stripped and new_name_stripped != t:
+                                try:
+                                    res = requests.put(f"{API_BASE_URL}/chat/threads", params={
+                                        "user_id": st.session_state.user_id,
+                                        "old_thread_id": t,
+                                        "new_thread_id": new_name_stripped
+                                    })
+                                    if res.status_code == 200:
+                                        # Update active thread ID if we renamed the active one
+                                        if t == st.session_state.thread_id:
+                                            st.session_state.thread_id = new_name_stripped
+                                            # Reset history cache to trigger reloading
+                                            st.session_state.last_thread_id = None
+                                        st.session_state.renaming_thread = None
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to rename: {res.text}")
+                                except Exception as ex:
+                                    st.error(f"Error: {str(ex)}")
+                            else:
+                                st.session_state.renaming_thread = None
+                                st.rerun()
+                    with col_cancel:
+                        if st.button("❌", key=f"rename_cancel_{t}", use_container_width=True):
+                            st.session_state.renaming_thread = None
+                            st.rerun()
+                else:
+                    col_btn, col_edit, col_del = st.columns([6, 1.5, 1.5])
+                    with col_btn:
+                        is_active = (t == st.session_state.thread_id)
+                        btn_type = "primary" if is_active else "secondary"
+                        if st.button(t, key=f"thread_select_{t}", use_container_width=True, type=btn_type):
+                            st.session_state.thread_id = t
+                            st.session_state.last_thread_id = None
+                            st.rerun()
+                    with col_edit:
+                        if st.button("✏️", key=f"thread_edit_{t}", use_container_width=True):
+                            st.session_state.renaming_thread = t
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️", key=f"thread_del_{t}", use_container_width=True):
+                            try:
+                                res = requests.delete(f"{API_BASE_URL}/chat/threads", params={
+                                    "user_id": st.session_state.user_id,
+                                    "thread_id": t
+                                })
+                                if res.status_code == 200:
+                                    if t in st.session_state.threads:
+                                        st.session_state.threads.remove(t)
+                                    if t == st.session_state.thread_id:
+                                        st.session_state.thread_id = generate_random_thread_name()
+                                        st.session_state.chat_history = []
+                                        st.session_state.is_interrupted = False
+                                        st.session_state.interrupt_payload = None
+                                    st.rerun()
+                                else:
+                                    st.error(f"Failed to delete thread: {res.text}")
+                            except Exception as ex:
+                                st.error(f"Error: {str(ex)}")
+    else:
+        st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; text-align:center; padding: 10px 0;">No saved chats.</div>', unsafe_allow_html=True)
             
     st.markdown('</div>', unsafe_allow_html=True)
 

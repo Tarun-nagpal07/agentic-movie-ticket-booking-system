@@ -70,4 +70,4 @@ def confirm_node(state: dict) -> dict:
                                     f"- **Seats:** {seats_str}\n"
                                     f"- **Total Paid:** ₹{confirmed_draft['total_price']}")
 
-    return {"confirmed": True, "booking_draft": confirmed_draft, "messages": [success_msg]}
+    return {"confirmed": True, "booking_draft": confirmed_draft, "last_booking_id": confirmed_draft["booking_id"], "messages": [success_msg]}

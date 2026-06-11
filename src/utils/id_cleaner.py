@@ -179,7 +179,7 @@ def extract_ids_from_tool_calls(messages: list) -> dict:
                         pass
                         
             # 4. seat tools
-            elif name in ("get_seat_map", "get_seats_types_available", "get_seats_available"):
+            elif name in ("get_available_seats", "recommend_seats"):
                 tid = resolve_theater_id(args.get("theater_id"))
                 mid = resolve_movie_id(args.get("movie_id"))
                 sid = args.get("show_id")

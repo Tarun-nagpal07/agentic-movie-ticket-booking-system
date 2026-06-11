@@ -4,7 +4,6 @@ from src.agents.memory import memory_read_node, memory_write_node
 from src.agents.planner import planner_node
 from src.agents.booking import booking_node
 from src.agents.recommendation import recommendation_node
-from src.agents.seat_selection import seat_selection_node
 from src.agents.policy import policy_node
 from src.agents.cancellation import cancellation_node
 from src.agents.history import history_node
@@ -27,7 +26,6 @@ def get_graph():
     builder.add_node("planner", planner_node)
     builder.add_node("booking_node", booking_node)
     builder.add_node("recommendation_node", recommendation_node)
-    builder.add_node("seat_node", seat_selection_node)
     builder.add_node("policy_node", policy_node)
     builder.add_node("cancellation_node", cancellation_node)
     builder.add_node("history_node", history_node)
@@ -46,7 +44,6 @@ def get_graph():
         route_agent,
         {
             "booking_node": "booking_node",
-            "seat_node": "seat_node",
             "recommendation_node": "recommendation_node",
             "cancellation_node": "cancellation_node",
             "history_node": "history_node",
@@ -85,7 +82,6 @@ def get_graph():
 
     # Seat, policy, and history agents do not change persistent state/memory directly,
     # so they go straight to END (according to the user-approved plan)
-    builder.add_edge("seat_node", END)
     builder.add_edge("policy_node", END)
     builder.add_edge("history_node", END)
 

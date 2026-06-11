@@ -43,9 +43,45 @@ def get_theater_by_city(city: str) -> dict:
     logger.info(f"found {len(cleaned)} theaters in {city}")
     return {"status":"success","theaters":cleaned}
 
+import difflib
+import re
+
+def _resolve_movie_name_to_id(movie_name: str) -> str | None:
+    """
+    Fuzzy-match a movie name against movies.json.
+    Used internally by tools — not exposed as a separate tool call.
+    Priority: exact → substring → fuzzy (difflib, cutoff=0.6)
+    """
+    if not movie_name:
+        return None
+    db = load_db(DBFile.MOVIES)
+    titles = {m["title"]: m["movie_id"] for m in db.get("movies", [])}
+
+    # 1. Exact match (case-insensitive)
+    for title, mid in titles.items():
+        if title.lower() == movie_name.lower():
+            return mid
+
+    # 2. Substring match ("pushpa" in "Pushpa 2: The Rule")
+    for title, mid in titles.items():
+        if movie_name.lower() in title.lower() or title.lower() in movie_name.lower():
+            return mid
+
+    # 3. Fuzzy match — handles "patthan"→"Pathaan", "intersteler"→"Interstellar"
+    matches = difflib.get_close_matches(
+        movie_name.lower(),
+        [t.lower() for t in titles],
+        n=1, cutoff=0.6
+    )
+    if matches:
+        for title, mid in titles.items():
+            if title.lower() == matches[0]:
+                return mid
+    return None
+
 @tool("get_movies_now_showing",args_schema=movies_now_showing)
 @handle_errors(error_class=ToolError)
-def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
+def get_movies_by_theaters(theater_ids: list[str], date: str = None, movie_name: str | None = None) -> dict:
     """
     Get all movies currently showing across given theaters on a date.
     Use after get_theaters_by_city to find what movies are playing on particular theaters.
@@ -53,6 +89,7 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
     Args:
         theater_ids: list of theater IDs e.g. ["t1", "t2"]
         date: date in YYYY-MM-DD format. Defaults to today if not provided.
+        movie_name: optional fuzzy movie name to filter results.
     """
     date = date or get_today()
     from src.utils.id_cleaner import resolve_theater_id
@@ -62,12 +99,18 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
 
     movies_lookup = {m["movie_id"]: m for m in movies_db["movies"]}
 
+    resolved_mid = None
+    if movie_name:
+        resolved_mid = _resolve_movie_name_to_id(movie_name)
+
     result = {}
     for tid in theater_ids:
         theater_shows = showtimes_db["showtimes"].get(tid, {})
         movies_showing = []
 
         for movie_id, shows in theater_shows.items():
+            if resolved_mid and movie_id != resolved_mid:
+                continue
             shows_on_date = [s for s in shows if s["date"] == date]
             if shows_on_date and movie_id in movies_lookup:
                 m_info = movies_lookup[movie_id]
@@ -94,18 +137,30 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None) -> dict:
 
 @tool("get_showtimes",args_schema=showtimes_request)
 @handle_errors(error_class=ToolError)
-def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
+def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str = None, movie_name: str | None = None) -> dict:
     """
     Get showtimes for a movie at a theater.
-    Use movie_id and theater_id from get_movies_now_showing results.
+    Use movie_id or movie_name and theater_id.
 
     Args:
-        movie_id: from get_movies_now_showing result e.g. "m1"
-        theater_id: from get_theater_by_city result e.g. "t1"
+        movie_id: ID of the movie e.g. "m1" (optional if movie_name provided)
+        theater_id: ID of the theater e.g. "t1"
         date: YYYY-MM-DD, defaults to today
+        movie_name: optional fuzzy movie name (e.g. "patthan", "Pathaan")
     """
     date = date or get_today()
     db = load_db(DBFile.SHOWTIMES)
+
+    # Resolve movie_name or movie_id if it's not a standard movie ID format
+    if movie_name:
+        resolved = _resolve_movie_name_to_id(movie_name)
+        if resolved:
+            movie_id = resolved
+    elif movie_id and not re.match(r"^m\d+$", movie_id.strip()):
+        # Try resolving it as a name if it looks like one (e.g. "patthan")
+        resolved = _resolve_movie_name_to_id(movie_id)
+        if resolved:
+            movie_id = resolved
 
     # 0. If movie_id is actually a show_id (e.g. starting with "s")
     if movie_id and movie_id.startswith("s"):
@@ -176,6 +231,7 @@ def get_showtimes(movie_id: str, theater_id: str, date: str = None) -> dict:
 
     logger.info(f"found {len(cleaned_shows)} shows for movie {movie_id} on {date}")
     return {"status": "success", "shows": cleaned_shows}
+
 
 
 @tool("book_tickets",args_schema=BookingRequest)

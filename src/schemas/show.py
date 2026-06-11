@@ -47,29 +47,33 @@ class theater_by_city(BaseModel):
 class movies_now_showing(BaseModel):
     theater_ids : list[str]
     date : str | None = None
+    movie_name: str | None = None
+
 
 class showtimes_request(BaseModel):
-    movie_id: str
+    movie_id: str | None = None
     theater_id: str
     date: str | None = None
+    movie_name: str | None = None
 
 
-class seat_map_request(BaseModel):
-    movie_id: str
+class get_available_seats_request(BaseModel):
     theater_id: str
+    movie_id: str | None = None
     show_id: str
+    seat_type: str | None = None
+    movie_name: str | None = None
 
-class seats_types_available(BaseModel):
-    movie_id: str
+
+class recommend_seats_request(BaseModel):
     theater_id: str
+    movie_id: str | None = None
     show_id: str
-    seat_type: list[str]
+    num_seats: int
+    user_id: str | None = None
+    seat_type: str | None = None
+    movie_name: str | None = None
 
-class seats_available(BaseModel):
-    movie_id:str
-    theater_id:str
-    show_id:str
-    seats: list[str]
 
 class RecommendMoviesRequest(BaseModel):
     genres: list[str]
@@ -77,7 +81,9 @@ class RecommendMoviesRequest(BaseModel):
     language: str | None = None
     limit: int = 5  # max recommendations to return
 
+
 class RecommendTheatersRequest(BaseModel):
     movie_id: str
     city: str
+
 

@@ -14,7 +14,7 @@ INTENT_TO_AGENT = {
     Intent.SEARCH_MOVIES:    "booking",
     Intent.GET_SHOWTIMES:    "booking",
     Intent.BOOK_TICKETS:     "booking",
-    Intent.SELECT_SEATS:     "seat",
+    Intent.SELECT_SEATS:     "booking",
     Intent.RECOMMEND_MOVIES: "recommend",
     Intent.CANCEL_BOOKING:   "cancellation",
     Intent.GET_HISTORY:      "history",
@@ -62,14 +62,17 @@ def resolve_date_string(date_str: str | None) -> str:
         return today_str
         
     date_str_clean = date_str.lower().strip()
+    if date_str_clean in ("none", "null", "undefined", ""):
+        return today_str
+        
     base_dt = datetime.strptime(today_str, "%Y-%m-%d")
     
     # Check for relative keywords (more specific keywords checked first)
     if "day after" in date_str_clean:
         return (base_dt + timedelta(days=2)).strftime("%Y-%m-%d")
-    elif re.search(r"\b(t[om]{2,4}o?r{1,2}[ow]*|tmw)\b", date_str_clean):
+    elif re.search(r"\b(t[om]{2,4}o?r{1,2}[ow]*|tmw)\b", date_str_clean) or "tomorrow" in date_str_clean or "tomoorow" in date_str_clean:
         return (base_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-    elif re.search(r"\b(tod[aeiouy]{1,3}|tonig[ht]*|tonite)\b", date_str_clean):
+    elif re.search(r"\b(tod[aeiouy]{1,3}|tonig[ht]*|tonite)\b", date_str_clean) or "today" in date_str_clean or "tonight" in date_str_clean:
         return today_str
     elif re.search(r"\b(3|three)\s+day", date_str_clean) or "in 3" in date_str_clean:
         return (base_dt + timedelta(days=3)).strftime("%Y-%m-%d")

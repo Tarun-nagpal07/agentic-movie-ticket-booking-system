@@ -1,16 +1,13 @@
 from langchain.agents import create_agent
 from src.agents.llm import get_llm
 from src.graph.state import CancellationAgentState
-from src.tools.cancellation_tools import (
-    get_booking_by_id,
-    prepare_cancellation,
-    process_refund
-)
+from src.tools.cancellation_tools import make_cancellation_tools
 from src.utils.logger import get_logger
 from src.agents.middleware import trim_messages
 logger = get_logger(__name__)
 from src.utils.id_cleaner import remove_raw_ids
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
+
 SYSTEM_PROMPT = """
 You are a booking cancellation assistant.
 You help users cancel bookings and understand their refund eligibility.
@@ -21,11 +18,17 @@ You help users cancel bookings and understand their refund eligibility.
 - DO NOT print "(Theater ID: ...)" or "(Movie ID: ...)" or "(ID: ...)" or show IDs in your output.
 
 Tools available and when to use them:
-- get_booking_by_id    : ALWAYS call first — verifies booking exists and belongs to user
-- prepare_cancellation : calculates refund and builds cancellation draft — does NOT cancel yet
-- process_refund       : call ONLY after cancellation has been confirmed and completed
+- get_booking_by_id      : ALWAYS call first — verifies booking exists and belongs to user
+- prepare_cancellation   : calculates refund and builds cancellation draft — does NOT cancel yet
+- process_refund         : call ONLY after cancellation has been confirmed and completed
+- get_last_booking       : call when user wants to cancel their last booking or "cancel my booking" and no specific ID or movie name is available in context.
+- get_booking_by_movie   : call when user specifies a movie name (e.g., "cancel Pathaan", "cancel my ticket for Interstellar").
 
 Strict rules:
+- If the user specifies a movie name to cancel (e.g., "cancel Pathaan"), call `get_booking_by_movie` with the movie name first.
+- If `get_booking_by_movie` returns multiple confirmed bookings, list all of them to the user (mentioning movie title, theater, date, time, and seats) and ask them to select/specify which one they wish to cancel.
+- Check the system message context first for "Last confirmed booking in this session: <booking_id>". If present and the user wants to cancel general booking without specifying a different movie name, use it directly as the booking ID for `get_booking_by_id`.
+- If no last booking ID is present in system context/message history and user wants to cancel their last booking generally, call the `get_last_booking` tool to find the most recent confirmed booking ID.
 - NEVER guess any booking IDs, movie titles, theater names, dates, times, refund amounts, or percentages. Always retrieve them using tools or verify them from tool outputs. If a value is missing or unclear, ask the user to clarify instead of guessing.
 - ALWAYS call get_booking_by_id before prepare_cancellation
 - NEVER cancel without calling prepare_cancellation first
@@ -42,28 +45,37 @@ Strict rules:
 - if refund is 0% → make sure user understands no refund before proceeding
 """
 
-cancellation_react_agent = create_agent(
-    get_llm(),
-    tools=[
-        get_booking_by_id,
-        prepare_cancellation,
-        process_refund
-    ],
-    system_prompt=SYSTEM_PROMPT,
-    middleware=[trim_messages]
-)
-
 
 def cancellation_node(state: CancellationAgentState) -> CancellationAgentState:
-    logger.info(f"cancellation agent called — user: {state.get('user_id')}")
+    user_id = state.get("user_id")
+    logger.info(f"cancellation agent called — user: {user_id}")
+
+    # Build tools bound to this user's context for this invocation
+    tools = make_cancellation_tools(user_id=user_id)
+
+    react_agent = create_agent(
+        get_llm(),
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        middleware=[trim_messages]
+    )
 
     input_messages = [
         m for m in state.get("messages", [])
         if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
     ]
+
+    last_booking_id = state.get("last_booking_id")
+    if last_booking_id:
+        input_messages = [
+            SystemMessage(content=f"Last confirmed booking in this session: {last_booking_id}. "
+                                  f"If user says 'cancel my booking', 'cancel that', or 'cancel my last booking', "
+                                  f"use this ID directly without asking or guessing.")
+        ] + input_messages
+
     agent_state = {**state, "messages": input_messages}
 
-    result = cancellation_react_agent.invoke(agent_state)
+    result = react_agent.invoke(agent_state)
 
     cancel_draft = state.get("cancel_draft")
     for msg in reversed(result["messages"]):
@@ -77,7 +89,6 @@ def cancellation_node(state: CancellationAgentState) -> CancellationAgentState:
         if isinstance(content, dict) and content.get("status") == "draft":
             cancel_draft = content.get("cancel_draft")
             break
-
 
     returned_messages = result["messages"][len(input_messages):]
     cleaned_messages = []

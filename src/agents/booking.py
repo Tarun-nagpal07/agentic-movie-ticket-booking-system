@@ -8,6 +8,10 @@ from src.tools.booking_tools import (
     get_showtimes,
     book_tickets
 )
+from src.tools.seat_tools import (
+    get_available_seats,
+    recommend_seats
+)
 from src.utils.logger import get_logger
 from src.agents.middleware import trim_messages
 from langchain_core.messages import SystemMessage
@@ -28,24 +32,27 @@ You help users find movies, showtimes, and book tickets.
 
 Tools available and when to use them:
 - get_theater_by_city     : first step — get theaters in user's city
-- get_movies_by_theaters  : second step — get movies showing on the selected date at those theaters
-- get_showtimes           : third step — get show timings for a specific movie + theater on the selected date
-- book_tickets            : final step — book tickets ONLY after user confirms show + seats
+- get_movies_by_theaters  : second step — get movies showing on the selected date at those theaters. Supports optional `movie_name` parameter for fuzzy filtering.
+- get_showtimes           : third step — get show timings for a specific movie + theater on the selected date. Supports optional `movie_name` parameter for fuzzy resolution.
+- get_available_seats     : fourth step — show user real available seats for a chosen show. Call when user asks to see seats, seat map, or availability. Optionally filters by `seat_type` ("standard", "premium", "recliner").
+- recommend_seats         : alternative to get_available_seats — recommend best consecutive seats based on user history or explicit seat type request. Call when user says "pick best seats", "recommend seats", "book X tickets".
+- book_tickets            : final step — book tickets ONLY after user confirms show + seats.
 
 Strict rules:
 - NEVER guess any IDs (theater_id, movie_id, show_id), theater names, movie titles, show times, available seats, or dates. If any value is missing and not provided in the "Current booking context" or user messages, you MUST ask the user to specify it instead of guessing.
-- ALWAYS follow the order: theaters → movies → showtimes → book
-- ALWAYS check the "Current booking context" system message first. If `theater_id` and/or `movie_id` are already present in the context, you MUST use them directly. In this case, you can skip get_theater_by_city and/or get_movies_by_theaters and proceed directly to get_showtimes or booking.
+- ALWAYS follow the order: theaters → movies → showtimes → seats/recommend_seats → book
+- ALWAYS check the "Current booking context" system message first. If `theater_id` and/or `movie_id` are already present in the context, you MUST use them directly. In this case, you can skip get_theater_by_city and/or get_movies_by_theaters and proceed directly to get_showtimes or seats/recommend_seats.
 - Only call get_theater_by_city if no theater_id/theater_name is present in the context or if the user asks to change the theater.
 - Only call get_movies_by_theaters if no movie_id/movie_title is present in the context or if the user asks to change the movie.
-- NEVER call book_tickets unless the user has explicitly said "yes", "confirm", or "book it"
+- NEVER call book_tickets unless the user has explicitly said "yes", "confirm", "book them", or "book it".
 - If the user's city is not known (neither explicitly mentioned in the messages nor present in the "User's current city" system context), you MUST ask the user which city they are in. DO NOT guess the city, and DO NOT call get_theater_by_city without knowing the city.
 - If the user's city is known, use that city for all theater and movie searches.
 - ALWAYS use the selected booking date provided in the system messages when calling tools. DO NOT guess any date. If the user doesn't specify a date, it defaults to today.
-- if user says "rebook last time" — extract show details from conversation history
-- if seats are not chosen yet, tell user to use seat selection first
-- after book_tickets returns a draft, tell user the booking summary and await confirmation
-- always show: movie title, theater name, screen, date, time, seats, total price
+- if user says "rebook last time" — extract show details from conversation history.
+- NEVER book tickets without showing the available seats (via get_available_seats) or getting recommended seats (via recommend_seats) first.
+- If the user has not chosen seats but wants to book, or asks to book tickets (e.g. "book 2 tickets"), use recommend_seats to find the best available seats and present them to the user for confirmation.
+- After book_tickets returns a draft, tell user the booking summary and await confirmation.
+- Always show: movie title, theater name, screen, date, time, seats, total price.
 """
 
 booking_react_agent = create_agent(
@@ -54,12 +61,15 @@ booking_react_agent = create_agent(
         get_theater_by_city,
         get_movies_by_theaters,
         get_showtimes,
+        get_available_seats,
+        recommend_seats,
         book_tickets
     ],
     system_prompt=SYSTEM_PROMPT,
     middleware=[trim_messages],
     debug=True
 )
+
 
 
 def booking_node(state: BookingAgentState) -> BookingAgentState:
