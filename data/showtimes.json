@@ -608,8 +608,8 @@
             "B3": "available",
             "B4": "available",
             "B5": "available",
-            "C1": "available",
-            "C2": "available",
+            "C1": "booked",
+            "C2": "booked",
             "C3": "available",
             "C4": "available",
             "C5": "available",
@@ -618,14 +618,14 @@
             "D3": "available",
             "D4": "available",
             "D5": "available",
-            "E1": "available",
-            "E2": "available",
-            "E3": "available",
-            "E4": "available",
-            "E5": "available",
-            "E6": "available",
-            "E7": "available",
-            "E8": "available"
+            "E1": "booked",
+            "E2": "booked",
+            "E3": "booked",
+            "E4": "booked",
+            "E5": "booked",
+            "E6": "booked",
+            "E7": "booked",
+            "E8": "booked"
           }
         },
         {

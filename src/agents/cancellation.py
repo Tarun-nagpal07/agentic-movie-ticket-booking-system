@@ -3,7 +3,7 @@ from src.agents.llm import get_llm
 from src.graph.state import CancellationAgentState
 from src.tools.cancellation_tools import make_cancellation_tools
 from src.utils.logger import get_logger
-from src.agents.middleware import trim_messages
+from src.agents.middleware import trim_messages, extract_new_messages
 logger = get_logger(__name__)
 from src.utils.id_cleaner import remove_raw_ids
 from langchain_core.messages import AIMessage, SystemMessage
@@ -57,7 +57,7 @@ def cancellation_node(state: CancellationAgentState) -> CancellationAgentState:
         get_llm(),
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
-        middleware=[trim_messages]
+        middleware=[trim_messages],
     )
 
     input_messages = [
@@ -90,7 +90,7 @@ def cancellation_node(state: CancellationAgentState) -> CancellationAgentState:
             cancel_draft = content.get("cancel_draft")
             break
 
-    returned_messages = result["messages"][len(input_messages):]
+    returned_messages = extract_new_messages(input_messages, result["messages"])
     cleaned_messages = []
     for msg in returned_messages:
         if msg.type == "ai" and isinstance(msg.content, str):

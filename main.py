@@ -270,12 +270,23 @@ async def chat_stream_endpoint(request: ChatRequest):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(request.user_id, request.thread_id)
             if db_messages:
+                # Trim to last 15 messages — matches what middleware keeps in LLM context
+                recent_msgs = db_messages[-15:]
+                # Also restore user preferences so memory_read_node can skip its DB round-trip
+                from src.memory.long_term import get_user_memory
+                from src.db.json_store import load_db
+                from src.config.constants import DBFile
+                user_memory = get_user_memory(request.user_id)
+                if not user_memory:
+                    users_db = load_db(DBFile.USERS)
+                    user_memory = users_db["users"].get(request.user_id, {})
                 graph.update_state(config, {
-                    "messages": db_messages,
+                    "messages": recent_msgs,
                     "user_id": request.user_id,
-                    "thread_id": request.thread_id
+                    "thread_id": request.thread_id,
+                    "memory": user_memory or {}
                 })
-                logger.info(f"Rehydrated thread {request.thread_id} with {len(db_messages)} messages from Supabase")
+                logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages + memory from Supabase")
                 
         inputs = {
             "messages": [HumanMessage(content=request.message)],
@@ -337,12 +348,23 @@ async def chat_endpoint(request: ChatRequest):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(request.user_id, request.thread_id)
             if db_messages:
+                # Trim to last 15 messages — matches what middleware keeps in LLM context
+                recent_msgs = db_messages[-15:]
+                # Also restore user preferences so memory_read_node can skip its DB round-trip
+                from src.memory.long_term import get_user_memory
+                from src.db.json_store import load_db
+                from src.config.constants import DBFile
+                user_memory = get_user_memory(request.user_id)
+                if not user_memory:
+                    users_db = load_db(DBFile.USERS)
+                    user_memory = users_db["users"].get(request.user_id, {})
                 graph.update_state(config, {
-                    "messages": db_messages,
+                    "messages": recent_msgs,
                     "user_id": request.user_id,
-                    "thread_id": request.thread_id
+                    "thread_id": request.thread_id,
+                    "memory": user_memory or {}
                 })
-                logger.info(f"Rehydrated thread {request.thread_id} with {len(db_messages)} messages from Supabase")
+                logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages + memory from Supabase")
 
         # Add Langfuse callback handler if available
         langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)

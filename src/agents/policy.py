@@ -3,7 +3,7 @@ from src.agents.llm import get_llm
 from src.graph.state import PolicyAgentState
 from src.tools.policy_tools import search_policy_docs
 from src.utils.logger import get_logger
-from src.agents.middleware import trim_messages
+from src.agents.middleware import trim_messages, extract_new_messages
 
 logger = get_logger(__name__)
 
@@ -54,7 +54,18 @@ def policy_node(state: PolicyAgentState) -> PolicyAgentState:
     ]
     agent_state = {**state, "messages": input_messages}
 
-    result = policy_react_agent.invoke(agent_state)
+    try:
+        result = policy_react_agent.invoke(agent_state, config={"recursion_limit": 10})
+    except Exception as e:
+        if "recursion_limit" in str(e).lower() or "recursion" in str(e).lower():
+            logger.error(f"Policy agent recursion limit reached: {e}")
+            from langchain_core.messages import AIMessage
+            msg = AIMessage(content="I encountered a processing loop. Please try your request again with simpler terms or one step at a time.")
+            return {
+                **state,
+                "messages": [msg]
+            }
+        raise e
 
     retrieved_chunks = state.get("retrieved_chunks")
     policy_answer    = state.get("policy_answer")
@@ -68,7 +79,7 @@ def policy_node(state: PolicyAgentState) -> PolicyAgentState:
 
     return {
         **state,
-        "messages":        result["messages"][len(input_messages):],
+        "messages":        extract_new_messages(input_messages, result["messages"]),
         "retrieved_chunks": retrieved_chunks,
         "policy_answer":   policy_answer
     }

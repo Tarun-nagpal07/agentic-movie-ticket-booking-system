@@ -275,8 +275,14 @@ def fetch_chat_history():
             interrupt = data.get("interrupt")
             return messages, is_interrupted, interrupt
     except Exception as e:
-        st.error(f"Failed to load chat history: {str(e)}")
-    return [], False, None
+        logger.error(f"Failed to load chat history: {e}")
+        # Return a nice initial message explaining the error gracefully
+        return [
+            {
+                "role": "assistant",
+                "content": "👋 Welcome to Cinemagic! I'm having trouble retrieving our past chat history right now, but I am ready to help you search for movies, check showtimes, and book tickets."
+            }
+        ], False, None
 
 # Load threads dynamically for the active user if not initialized
 if "threads" not in st.session_state:
@@ -399,9 +405,9 @@ with st.sidebar:
                                         st.session_state.renaming_thread = None
                                         st.rerun()
                                     else:
-                                        st.error(f"Failed to rename: {res.text}")
+                                        st.toast(f"⚠️ Failed to rename thread: {res.text}", icon="⚠️")
                                 except Exception as ex:
-                                    st.error(f"Error: {str(ex)}")
+                                    st.toast(f"⚠️ Error: {str(ex)}", icon="⚠️")
                             else:
                                 st.session_state.renaming_thread = None
                                 st.rerun()
@@ -439,9 +445,9 @@ with st.sidebar:
                                         st.session_state.interrupt_payload = None
                                     st.rerun()
                                 else:
-                                    st.error(f"Failed to delete thread: {res.text}")
+                                    st.toast(f"⚠️ Failed to delete thread: {res.text}", icon="⚠️")
                             except Exception as ex:
-                                st.error(f"Error: {str(ex)}")
+                                st.toast(f"⚠️ Error: {str(ex)}", icon="⚠️")
     else:
         st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; text-align:center; padding: 10px 0;">No saved chats.</div>', unsafe_allow_html=True)
             
@@ -581,38 +587,23 @@ if is_interrupted and interrupt_payload:
                     st.success("Approved successfully!")
                     st.rerun()
                 elif res.status_code == 429:
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ Rate Limit Exceeded
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            Too many requests. Please wait a few seconds before trying again.
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Approve again."
+                    })
+                    st.rerun()
                 else:
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ Approval Failed
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            {res.text}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I encountered an issue confirming the booking on the server: {res.text}. Please try again."
+                    })
+                    st.rerun()
             except Exception as e:
-                st.markdown(f"""
-                <div class="glass-error-card">
-                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        ⚠️ Connection Error
-                    </div>
-                    <div style="font-size: 0.9rem;">
-                        Could not connect to the backend server: {str(e)}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": f"I am unable to connect to the backend server to confirm your booking: {str(e)}. Please try again."
+                })
+                st.rerun()
                 
     with btn_col2:
         if st.button("❌ Reject", key="hitl_reject", use_container_width=True):
@@ -630,38 +621,23 @@ if is_interrupted and interrupt_payload:
                     st.warning("Rejected/Cancelled draft booking.")
                     st.rerun()
                 elif res.status_code == 429:
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ Rate Limit Exceeded
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            Too many requests. Please wait a few seconds before trying again.
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Reject again."
+                    })
+                    st.rerun()
                 else:
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ Rejection Failed
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            {res.text}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I encountered an issue rejecting the draft booking: {res.text}. Please try again."
+                    })
+                    st.rerun()
             except Exception as e:
-                st.markdown(f"""
-                <div class="glass-error-card">
-                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        ⚠️ Connection Error
-                    </div>
-                    <div style="font-size: 0.9rem;">
-                        Could not connect to the backend server: {str(e)}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": f"I am unable to connect to the backend server to reject the booking: {str(e)}. Please try again."
+                })
+                st.rerun()
                 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -726,16 +702,13 @@ if user_input:
                     response_placeholder.markdown(full_response)
                     
                     if error_msg:
-                        st.markdown(f"""
-                        <div class="glass-error-card">
-                            <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                ⚠️ System Alert
-                            </div>
-                            <div style="font-size: 0.9rem;">
-                                {error_msg}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": f"I encountered an error while processing: {error_msg}."
+                        })
+                        st.session_state.is_interrupted = False
+                        st.session_state.interrupt_payload = None
+                        st.rerun()
                     elif complete_payload:
                         # Always merge streamed AI message with full history from PostgreSQL.
                         # Middleware may have trimmed the state, but we preserve everything here.
@@ -761,39 +734,22 @@ if user_input:
                         detail = res.json().get("detail", "Too many requests.")
                     except Exception:
                         detail = res.text
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ Rate Limit Exceeded
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            {detail} Please wait a few seconds before trying again.
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I'm sorry, I'm receiving too many requests right now: {detail} Please wait a few seconds and try again."
+                    })
+                    st.rerun()
                 else:
                     status_placeholder.empty()
-                    # Handle non-200 responses gracefully
-                    st.markdown(f"""
-                    <div class="glass-error-card">
-                        <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                            ⚠️ System Alert
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            The backend assistant service returned an error (HTTP {res.status_code}): {res.text}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I'm sorry, I encountered a server error (HTTP {res.status_code}): {res.text}. Please try again."
+                    })
+                    st.rerun()
             except Exception as e:
                 status_placeholder.empty()
-                # Handle connection or other client-side exceptions gracefully
-                st.markdown(f"""
-                <div class="glass-error-card">
-                    <div style="font-weight: 600; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        ⚠️ Connection Failed
-                    </div>
-                    <div style="font-size: 0.9rem;">
-                        Could not establish a connection to the Cinemagic assistant. Please make sure the backend is running. (Error: {str(e)})
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": f"I am unable to connect to the backend assistant right now. Please make sure the backend server is running. (Error: {str(e)})"
+                })
+                st.rerun()

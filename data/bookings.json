@@ -314,6 +314,85 @@
       "booked_at": "2025-06-01T08:00:00Z",
       "refund_amount": 900.0,
       "cancelled_at": "2025-06-01T08:00:00Z"
+    },
+    "b_012": {
+      "booking_id": "b_012",
+      "user_id": "u1",
+      "movie_id": "m6",
+      "movie_title": "Animal",
+      "theater_id": "t3",
+      "theater_name": "Cinepolis AlphaOne",
+      "screen_no": 2,
+      "screen_name": "Standard 2",
+      "show_id": "s302",
+      "show_date": "2025-06-01",
+      "show_time": "16:00",
+      "format": "standard",
+      "seats": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5"
+      ],
+      "seat_types": {
+        "A": "standard",
+        "B": "standard",
+        "C": "standard",
+        "D": "premium"
+      },
+      "num_tickets": 10,
+      "price_per_ticket": 260,
+      "total_price": 2600,
+      "status": "cancelled",
+      "booked_at": "2025-06-01T08:00:00Z",
+      "refund_amount": 1300.0,
+      "cancelled_at": "2025-06-01T08:00:00Z"
+    },
+    "b_013": {
+      "booking_id": "b_013",
+      "user_id": "u1",
+      "movie_id": "m5",
+      "movie_title": "Dune: Part Two",
+      "theater_id": "t1",
+      "theater_name": "INOX SG Highway",
+      "screen_no": 1,
+      "screen_name": "IMAX Screen",
+      "show_id": "s104",
+      "show_date": "2025-06-01",
+      "show_time": "11:00",
+      "format": "IMAX",
+      "seats": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "C1",
+        "C2"
+      ],
+      "seat_types": {
+        "A": "standard",
+        "B": "standard",
+        "C": "standard",
+        "D": "premium",
+        "E": "recliner"
+      },
+      "num_tickets": 10,
+      "price_per_ticket": 450,
+      "total_price": 4500,
+      "status": "confirmed",
+      "booked_at": "2025-06-01T08:00:00Z",
+      "refund_amount": null,
+      "cancelled_at": null
     }
   }
 }

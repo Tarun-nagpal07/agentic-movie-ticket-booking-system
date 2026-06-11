@@ -13,7 +13,7 @@ from src.tools.seat_tools import (
     recommend_seats
 )
 from src.utils.logger import get_logger
-from src.agents.middleware import trim_messages
+from src.agents.middleware import trim_messages, extract_new_messages
 from langchain_core.messages import SystemMessage
 from src.utils.id_cleaner import remove_raw_ids
 from src.utils.date_utils import get_today
@@ -49,8 +49,16 @@ Strict rules:
 - If the user's city is known, use that city for all theater and movie searches.
 - ALWAYS use the selected booking date provided in the system messages when calling tools. DO NOT guess any date. If the user doesn't specify a date, it defaults to today.
 - if user says "rebook last time" — extract show details from conversation history.
-- NEVER book tickets without showing the available seats (via get_available_seats) or getting recommended seats (via recommend_seats) first.
-- If the user has not chosen seats but wants to book, or asks to book tickets (e.g. "book 2 tickets"), use recommend_seats to find the best available seats and present them to the user for confirmation.
+- NEVER book tickets or recommend seats without having a selected showtime first. If the user asks to book tickets (e.g., "book 2 tickets" or "book my tickets") but has NOT selected a theater, movie, or showtime yet, you MUST NOT proceed to seat selection or booking. Instead, list available movies/theaters, show the available showtimes, and ask them to choose a showtime first.
+- Even if the theater, movie, and showtime are present in the "Current booking context" or resolved implicitly, if the user directly asks to book tickets (e.g., "i wanna book 14 tickets for animal", "book 3 seats") and has not explicitly chosen or confirmed the showtime in the chat history, you MUST NOT call recommend_seats or book_tickets immediately. Instead, first present the showtime details (theater, movie, date, time) to the user and ask them to confirm if they want to select this showtime.
+- If you are required to ask the user to confirm or choose a showtime before calling recommend_seats or book_tickets, you MUST STOP executing tools immediately and reply to the user textually. Do NOT call get_showtimes, get_available_seats, or any search tools in a loop.
+- EXCEPTION: If the user has just completed and confirmed a booking for a specific movie, theater, and showtime in the immediate chat history (e.g., they just successfully booked 10 tickets out of a larger request), and is now booking the remaining tickets (e.g., saying "now for 2", "book the other 2"), the showtime is considered verified and selected. You do NOT need to ask them to confirm the showtime again. Proceed directly to recommend_seats for the remaining number of tickets.
+- Once the user explicitly selects/confirms the showtime (e.g. saying "yes", "proceed", "that works"), then use recommend_seats to find the best available seats and present them to the user for confirmation.
+- If the user requests to book more than 10 tickets (or asks for more than 10 seats):
+  1. Explain to the user that the system allows a maximum of 10 tickets per booking transaction.
+  2. Offer to book the first 10 tickets/seats first, and explain that they can book the remaining tickets in subsequent transactions.
+  3. Call recommend_seats or book_tickets with a maximum of 10 seats (e.g., the first 10 seats or a recommendation for 10 seats). NEVER pass more than 10 seats or a num_seats/num_tickets value greater than 10 to any tool.
+  4. Once those 10 are drafted, present the booking summary to the user for confirmation. Do NOT try to call booking tools again in a loop within the same turn.
 - After book_tickets returns a draft, tell user the booking summary and await confirmation.
 - Always show: movie title, theater name, screen, date, time, seats, total price.
 """
@@ -155,15 +163,14 @@ def booking_node(state: BookingAgentState) -> BookingAgentState:
     if current_movie_id and current_theater_id and not current_show_id:
         current_show_id = resolve_implicit_show(current_theater_id, current_movie_id, date, latest_human_msg)
 
-    input_messages = [
-        m for m in state.get("messages", [])
-        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
-    ]
+    # Build a single consolidated system message containing all active context
+    context_lines = []
     
-    # Inject current date and selected date context so the agent has full time context
-    input_messages = [SystemMessage(content=f"Today's date: {today_str}\nSelected booking date: {date}")] + input_messages
-
-    # 3. Inject context (IDs and Names) so LLM knows selected theater/movie/show
+    city = state.get("city")
+    if city:
+        context_lines.append(f"User's current city: {city}")
+        
+    # Inject context (IDs and Names) so LLM knows selected theater/movie/show
     context_parts = []
     if current_theater_id and current_theater_name:
         context_parts.append(f"Selected Theater: {current_theater_name} (ID: {current_theater_id})")
@@ -183,16 +190,34 @@ def booking_node(state: BookingAgentState) -> BookingAgentState:
         context_parts.append(f"Selected Show ID: {current_show_id}")
 
     if context_parts:
-        context_str = "\n".join(context_parts)
-        input_messages = [SystemMessage(content=f"Current booking context:\n{context_str}")] + input_messages
+        context_lines.append("Current booking context:\n" + "\n".join(context_parts))
+        
+    context_lines.append(f"Today's date: {today_str}\nSelected booking date: {date}")
+    
+    combined_context_msg = SystemMessage(content="\n\n".join(context_lines))
 
-    city = state.get("city")
-    if city:
-        input_messages = [SystemMessage(content=f"User's current city: {city}")] + input_messages
+    # Keep conversation history (HumanMessage, AIMessage)
+    input_messages = [
+        m for m in state.get("messages", [])
+        if getattr(m, "type", None) == "human" or (getattr(m, "type", None) == "ai" and not getattr(m, "tool_calls", None))
+    ]
+    
+    # Prepend the single, consolidated system context message
+    input_messages = [combined_context_msg] + input_messages
 
     agent_state = {**state, "messages": input_messages}
 
-    result = booking_react_agent.invoke(agent_state)
+    try:
+        result = booking_react_agent.invoke(agent_state, config={"recursion_limit": 10})
+    except Exception as e:
+        if "recursion_limit" in str(e).lower() or "recursion" in str(e).lower():
+            logger.error(f"Booking agent recursion limit reached: {e}")
+            msg = AIMessage(content="I encountered a processing loop. Please try your request again with simpler terms or one step at a time.")
+            return {
+                **state,
+                "messages": [msg]
+            }
+        raise e
 
     # extract booking_draft from tool messages if present
     booking_draft = state.get("booking_draft")
@@ -217,7 +242,7 @@ def booking_node(state: BookingAgentState) -> BookingAgentState:
     final_movie_title = tool_updates["movie_title"] if "movie_title" in tool_updates else current_movie_title
     final_show_id = tool_updates["show_id"] if "show_id" in tool_updates else current_show_id
 
-    returned_messages = result["messages"][len(input_messages):]
+    returned_messages = extract_new_messages(input_messages, result["messages"])
     cleaned_messages = []
     for msg in returned_messages:
         if msg.type == "ai" and isinstance(msg.content, str):

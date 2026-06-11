@@ -17,7 +17,7 @@
         "t2"
       ],
       "preferred_seat_type": "recliner",
-      "preferred_format": "4DX",
+      "preferred_format": "IMAX",
       "language_pref": "English",
       "booking_history": [
         {
@@ -239,6 +239,45 @@
           "num_tickets": 3,
           "price_per_ticket": 600,
           "total_price": 1800,
+          "status": "confirmed",
+          "booked_at": "2025-06-01T08:00:00Z",
+          "refund_amount": null,
+          "cancelled_at": null
+        },
+        {
+          "booking_id": "b_012",
+          "user_id": "u1",
+          "movie_id": "m6",
+          "movie_title": "Animal",
+          "theater_id": "t3",
+          "theater_name": "Cinepolis AlphaOne",
+          "screen_no": 2,
+          "screen_name": "Standard 2",
+          "show_id": "s302",
+          "show_date": "2025-06-01",
+          "show_time": "16:00",
+          "format": "standard",
+          "seats": [
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5"
+          ],
+          "seat_types": {
+            "A": "standard",
+            "B": "standard",
+            "C": "standard",
+            "D": "premium"
+          },
+          "num_tickets": 10,
+          "price_per_ticket": 260,
+          "total_price": 2600,
           "status": "confirmed",
           "booked_at": "2025-06-01T08:00:00Z",
           "refund_amount": null,

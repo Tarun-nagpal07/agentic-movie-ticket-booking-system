@@ -3,7 +3,7 @@ from src.agents.llm import get_llm
 from src.graph.state import RecommendationAgentState
 from src.tools.recommendation_tools import make_recommendation_tools
 from src.utils.logger import get_logger
-from src.agents.middleware import trim_messages
+from src.agents.middleware import trim_messages, extract_new_messages
 from src.utils.id_cleaner import remove_raw_ids
 from langchain_core.messages import AIMessage
 
@@ -58,7 +58,17 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
     ]
     agent_state = {**state, "messages": input_messages}
 
-    result = react_agent.invoke(agent_state)
+    try:
+        result = react_agent.invoke(agent_state, config={"recursion_limit": 10})
+    except Exception as e:
+        if "recursion_limit" in str(e).lower() or "recursion" in str(e).lower():
+            logger.error(f"Recommendation agent recursion limit reached: {e}")
+            msg = AIMessage(content="I encountered a processing loop. Please try your request again with simpler terms or one step at a time.")
+            return {
+                **state,
+                "messages": [msg]
+            }
+        raise e
 
     # extract recommendations from tool messages if present
     recommendations    = state.get("recommendations")
@@ -78,7 +88,7 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
             if "theaters" in content:
                 suggested_theaters = content["theaters"]
 
-    returned_messages = result["messages"][len(input_messages):]
+    returned_messages = extract_new_messages(input_messages, result["messages"])
     cleaned_messages = []
     for msg in returned_messages:
         if msg.type == "ai" and isinstance(msg.content, str):
