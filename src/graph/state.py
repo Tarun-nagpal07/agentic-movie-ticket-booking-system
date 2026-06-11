@@ -32,6 +32,7 @@ class BookingState(TypedDict):
 
     thread_id: str | None                     # session/thread identifier
     redirect_to_planner: bool | None          # redirect conversational interrupts to planner
+    last_booking_id: str | None               # ID of most recently confirmed booking in this session
 
 
 class BookingAgentState(TypedDict):
@@ -111,6 +112,7 @@ class CancellationAgentState(TypedDict):
     user_id: str
 
     cancel_draft: dict | None                 # draft for cancel confirmation
+    last_booking_id: str | None               # ID of most recently confirmed booking in this session
 
 
 

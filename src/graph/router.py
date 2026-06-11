@@ -15,7 +15,7 @@ def route_agent(state: BookingState) -> str:
     if next_agent == "booking":
         return "booking_node"
     elif next_agent == "seat":
-        return "seat_node"
+        return "booking_node"
     elif next_agent == "recommend":
         return "recommendation_node"
     elif next_agent == "cancellation":

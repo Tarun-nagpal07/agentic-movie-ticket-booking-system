@@ -116,10 +116,10 @@
             "E": "recliner"
           },
           "seats": {
-            "A1": "available",
-            "A2": "available",
-            "A3": "available",
-            "A4": "available",
+            "A1": "booked",
+            "A2": "booked",
+            "A3": "booked",
+            "A4": "booked",
             "A5": "available",
             "B1": "available",
             "B2": "available",

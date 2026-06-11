@@ -130,6 +130,35 @@ def load_messages_from_postgress(user_id: str, thread_id: str) -> list:
     return []
 
 
+def append_new_messages_to_db(user_id: str, thread_id: str, graph_state_messages: list):
+    """
+    Append only genuinely new messages from this turn into PostgreSQL.
+
+    PostgreSQL is the single source of truth for the full history.
+    The graph state may be trimmed to 15 messages by middleware, so we NEVER
+    overwrite the DB with the graph state. Instead we identify which message IDs
+    are not yet in the DB and append only those.
+    """
+    try:
+        db_messages = load_messages_from_postgress(user_id, thread_id)
+
+        # Build set of IDs already persisted
+        db_ids = {getattr(m, "id", None) for m in db_messages if getattr(m, "id", None)}
+
+        # Collect only new messages (not yet in DB)
+        new_msgs = [m for m in graph_state_messages if getattr(m, "id", None) not in db_ids]
+
+        if not new_msgs:
+            logger.info(f"No new messages to append for user={user_id}, thread={thread_id}")
+            return
+
+        merged = db_messages + new_msgs
+        save_messages_to_postgress(user_id, thread_id, merged)
+        logger.info(f"Appended {len(new_msgs)} new message(s) to DB for user={user_id}, thread={thread_id} (total={len(merged)})")
+    except Exception as e:
+        logger.error(f"Failed to append new messages to DB: {e}", exc_info=True)
+
+
 def get_langfuse_callback(user_id: str, thread_id: str):
     """
     Instantiates and returns the Langfuse CallbackHandler if API keys are set.
@@ -197,10 +226,12 @@ def run_graph_in_thread(inputs, config, q: queue.Queue):
         snapshot = graph.get_state(config)
         interrupt_info = get_active_interrupt(snapshot)
         all_messages = snapshot.values.get("messages", [])
-        formatted_msgs = format_messages(all_messages)
         
-        # Persist messages to PostgreSQL
-        save_messages_to_postgress(inputs["user_id"], inputs["thread_id"], all_messages)
+        # Append only genuinely new messages to PostgreSQL, never overwrite full history
+        append_new_messages_to_db(inputs["user_id"], inputs["thread_id"], all_messages)
+        # Always load the complete history from DB as the source of truth
+        full_messages = load_messages_from_postgress(inputs["user_id"], inputs["thread_id"])
+        formatted_msgs = format_messages(full_messages)
         
         status = "requires_confirmation" if interrupt_info else "success"
         complete_event = {
@@ -333,10 +364,12 @@ async def chat_endpoint(request: ChatRequest):
         interrupt_info = get_active_interrupt(snapshot)
 
         all_messages = snapshot.values.get("messages", [])
-        formatted_msgs = format_messages(all_messages)
-
-        # Persist updated message history to postgress
-        save_messages_to_postgress(request.user_id, request.thread_id, all_messages)
+        
+        # Append only genuinely new messages to PostgreSQL, never overwrite full history
+        append_new_messages_to_db(request.user_id, request.thread_id, all_messages)
+        # Always load the complete history from DB as the source of truth
+        full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
+        formatted_msgs = format_messages(full_messages)
 
         if interrupt_info:
             logger.info(f"Graph paused at interrupt: {interrupt_info.get('message')}")
@@ -365,7 +398,7 @@ def get_chat_threads(user_id: str):
     try:
         with get_db_cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT thread_id FROM chat_messages WHERE user_id = %s ORDER BY thread_id;",
+                "SELECT thread_id FROM chat_messages WHERE user_id = %s ORDER BY updated_at DESC;",
                 (user_id,)
             )
             rows = cur.fetchall()
@@ -408,6 +441,110 @@ def get_chat_history(user_id: str, thread_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching history: {str(e)}"
+        )
+
+
+@app.delete("/chat/threads", dependencies=[Depends(RateLimiter(limit=20, window=10, scope="threads"))])
+def delete_chat_thread(user_id: str, thread_id: str):
+    try:
+        # 1. Delete from PostgreSQL
+        with get_db_cursor() as cur:
+            cur.execute(
+                "DELETE FROM chat_messages WHERE user_id = %s AND thread_id = %s;",
+                (user_id, thread_id)
+            )
+        logger.info(f"Deleted thread {thread_id} messages for user {user_id} from PostgreSQL")
+
+        # 2. Delete checkpointer keys from Redis
+        try:
+            import redis
+            from src.config.settings import settings
+            r = redis.Redis.from_url(settings.REDIS_URL)
+            patterns = [
+                f"checkpoint:{thread_id}:*",
+                f"checkpoint_write:{thread_id}:*",
+                f"write_keys_zset:{thread_id}:*"
+            ]
+            deleted_keys_count = 0
+            for pattern in patterns:
+                keys = r.keys(pattern)
+                if keys:
+                    r.delete(*keys)
+                    deleted_keys_count += len(keys)
+            logger.info(f"Cleared {deleted_keys_count} Redis checkpointer keys for thread {thread_id}")
+        except Exception as re_err:
+            logger.error(f"Failed to clear Redis checkpoints for thread {thread_id}: {re_err}")
+
+        return {"status": "success", "message": f"Thread {thread_id} deleted successfully."}
+    except Exception as e:
+        logger.error(f"Error deleting thread {thread_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting thread: {str(e)}"
+        )
+
+
+@app.put("/chat/threads", dependencies=[Depends(RateLimiter(limit=20, window=10, scope="threads"))])
+def rename_chat_thread(user_id: str, old_thread_id: str, new_thread_id: str):
+    if not new_thread_id or not new_thread_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New thread ID cannot be empty."
+        )
+    try:
+        # 1. Update in PostgreSQL
+        with get_db_cursor() as cur:
+            # Check if new thread ID already exists to avoid conflict
+            cur.execute(
+                "SELECT 1 FROM chat_messages WHERE user_id = %s AND thread_id = %s;",
+                (user_id, new_thread_id)
+            )
+            if cur.fetchone():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"A thread named '{new_thread_id}' already exists."
+                )
+
+            cur.execute(
+                """
+                UPDATE chat_messages 
+                SET thread_id = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND thread_id = %s;
+                """,
+                (new_thread_id, user_id, old_thread_id)
+            )
+        logger.info(f"Renamed thread {old_thread_id} to {new_thread_id} for user {user_id} in PostgreSQL")
+
+        # 2. Delete checkpointer keys for both old and new threads from Redis to be completely clean
+        # (when the new thread is accessed next, it will rehydrate from PostgreSQL)
+        try:
+            import redis
+            from src.config.settings import settings
+            r = redis.Redis.from_url(settings.REDIS_URL)
+            for tid in [old_thread_id, new_thread_id]:
+                patterns = [
+                    f"checkpoint:{tid}:*",
+                    f"checkpoint_write:{tid}:*",
+                    f"write_keys_zset:{tid}:*"
+                ]
+                deleted_keys_count = 0
+                for pattern in patterns:
+                    keys = r.keys(pattern)
+                    if keys:
+                        r.delete(*keys)
+                        deleted_keys_count += len(keys)
+                logger.info(f"Cleared {deleted_keys_count} Redis checkpointer keys for thread {tid}")
+        except Exception as re_err:
+            logger.error(f"Failed to clear Redis checkpoints during rename: {re_err}")
+
+        return {"status": "success", "message": f"Thread {old_thread_id} renamed to {new_thread_id} successfully."}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error renaming thread {old_thread_id} to {new_thread_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error renaming thread: {str(e)}"
         )
 
 
@@ -470,10 +607,12 @@ async def confirm_endpoint(request: ConfirmRequest):
         new_interrupt_info = get_active_interrupt(new_snapshot)
 
         all_messages = new_snapshot.values.get("messages", [])
-        formatted_msgs = format_messages(all_messages)
-
-        # Persist updated message history to postgress
-        save_messages_to_postgress(request.user_id, request.thread_id, all_messages)
+        
+        # Append only genuinely new messages to PostgreSQL, never overwrite full history
+        append_new_messages_to_db(request.user_id, request.thread_id, all_messages)
+        # Always load the complete history from DB as the source of truth
+        full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
+        formatted_msgs = format_messages(full_messages)
 
         if new_interrupt_info:
             logger.info(f"Graph paused at subsequent interrupt: {new_interrupt_info.get('message')}")
