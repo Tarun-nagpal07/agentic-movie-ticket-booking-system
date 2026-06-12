@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies needed for Postgres and Python packages
+# Install system dependencies needed for Postgres and python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -31,11 +31,14 @@ RUN uv pip install --system -e .
 # Copy the application source code and relevant files
 COPY src/ ./src
 COPY data/ ./data
-COPY main.py app.py ingestion.py ./
+COPY main.py app.py ingestion.py start.sh ./
+
+# Make startup script executable
+RUN chmod +x start.sh
 
 # Expose FastAPI backend and Streamlit frontend ports
 EXPOSE 8005
 EXPOSE 8501
 
-# Default command launches the FastAPI backend
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8005"]
+# Default command launches the app using start.sh (which manages both backend and frontend)
+CMD ["./start.sh"]

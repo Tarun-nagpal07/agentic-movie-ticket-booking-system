@@ -55,7 +55,7 @@ def policy_node(state: PolicyAgentState) -> PolicyAgentState:
     agent_state = {**state, "messages": input_messages}
 
     try:
-        result = policy_react_agent.invoke(agent_state, config={"recursion_limit": 10})
+        result = policy_react_agent.invoke(agent_state, config={"recursion_limit": 30})
     except Exception as e:
         if "recursion_limit" in str(e).lower() or "recursion" in str(e).lower():
             logger.error(f"Policy agent recursion limit reached: {e}")

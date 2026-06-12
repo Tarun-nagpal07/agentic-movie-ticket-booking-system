@@ -59,7 +59,7 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
     agent_state = {**state, "messages": input_messages}
 
     try:
-        result = react_agent.invoke(agent_state, config={"recursion_limit": 10})
+        result = react_agent.invoke(agent_state, config={"recursion_limit": 30})
     except Exception as e:
         if "recursion_limit" in str(e).lower() or "recursion" in str(e).lower():
             logger.error(f"Recommendation agent recursion limit reached: {e}")

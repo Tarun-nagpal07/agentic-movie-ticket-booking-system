@@ -7,7 +7,7 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def memory_read_node(state: BookingState) -> BookingState:
+def memory_read_node(state: BookingState) -> dict:
     """
     Runs at graph START on every turn.
 
@@ -19,11 +19,26 @@ def memory_read_node(state: BookingState) -> BookingState:
     - Only do the full load when the session is fresh (memory not yet in state).
     """
     user_id  = state["user_id"]
+    updates = {}
+
+    # Reset confirmation / redirect flags and finished drafts
+    if state.get("confirmed") is not None:
+        updates["confirmed"] = None
+    if state.get("redirect_to_planner"):
+        updates["redirect_to_planner"] = None
+
+    booking_draft = state.get("booking_draft")
+    if booking_draft and booking_draft.get("status") == "confirmed":
+        updates["booking_draft"] = None
+
+    cancel_draft = state.get("cancel_draft")
+    if cancel_draft and cancel_draft.get("status") == "cancelled":
+        updates["cancel_draft"] = None
 
     # ── Already loaded from a previous turn's checkpoint — skip ──────────────
     if state.get("memory"):
-        logger.info(f"memory_read: state already has memory for user {user_id} — skipping load")
-        return {}   # no state changes needed; checkpoint carries everything
+        logger.info(f"memory_read: state already has memory for user {user_id} — skipping load and returning resets")
+        return updates
 
     # ── Fresh session — load from PostgreSQL (long-term store) ───────────────
     logger.info(f"memory_read: fresh session for user {user_id} — loading from PostgreSQL")
@@ -36,9 +51,8 @@ def memory_read_node(state: BookingState) -> BookingState:
         user_memory = users_db["users"].get(user_id)
 
     logger.info(f"memory_read complete for user {user_id}: loaded memory")
-    return {
-        "memory":        user_memory or {}
-    }
+    updates["memory"] = user_memory or {}
+    return updates
 
 
 def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:

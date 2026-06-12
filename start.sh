@@ -36,180 +36,297 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 info "Working directory: $SCRIPT_DIR"
 
+# Helper to read .env values safely, falling back to existing environment variables
+get_env_val() {
+  local key=$1
+  # Check if key is already set in environment
+  local env_val
+  eval env_val=\${$key:-}
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+  elif [[ -f ".env" && -n "$(grep "^${key}[[:space:]]*=" .env || echo '')" ]]; then
+    grep "^${key}[[:space:]]*=" .env | tail -n 1 | cut -d'=' -f2- | tr -d '"'\''\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+  else
+    echo ""
+  fi
+}
+
+# Check if a URL is local
+is_local() {
+  local url=$1
+  if [[ -z "$url" ]]; then
+    echo "false"
+  elif [[ "$url" =~ "localhost" || "$url" =~ "127.0.0.1" ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+REDIS_URL=$(get_env_val "REDIS_URL")
+QDRANT_URL=$(get_env_val "QDRANT_URL")
+SUPABASE_DB_URL=$(get_env_val "SUPABASE_DB_URL")
+QDRANT_API=$(get_env_val "QDRANT_API")
+QDRANT_API_KEY=$(get_env_val "QDRANT_API_KEY")
+
+REDIS_LOCAL=$(is_local "$REDIS_URL")
+QDRANT_LOCAL=$(is_local "$QDRANT_URL")
+POSTGRES_LOCAL=$(is_local "$SUPABASE_DB_URL")
+
+REDIS_URL_MASKED=$(echo "$REDIS_URL" | sed -E 's/:[^@]+@/:****@/')
+SUPABASE_URL_MASKED=$(echo "$SUPABASE_DB_URL" | sed -E 's/:[^@]+@/:****@/')
+
+BIND_ADDRESS="127.0.0.1"
+HEADLESS_MODE="false"
+if [[ -f /.dockerenv ]]; then
+  BIND_ADDRESS="0.0.0.0"
+  HEADLESS_MODE="true"
+fi
+
 # ── 0. check .env ────────────────────────────────────────────
 header "Step 0 · Environment"
 if [[ ! -f ".env" ]]; then
-  error ".env file not found. Copy .env.example and fill in your keys."
-  exit 1
+  if [[ -n "${SUPABASE_DB_URL:-}" && -n "${REDIS_URL:-}" && -n "${QDRANT_URL:-}" ]]; then
+    info ".env file not found, but database environment variables are already defined in the environment. Proceeding..."
+  else
+    error ".env file not found and database environment variables are not set. Copy .env.example and fill in your keys."
+    exit 1
+  fi
+else
+  success ".env file found"
 fi
-success ".env file found"
 
 # ── 1. activate virtual environment ─────────────────────────
 header "Step 1 · Virtual Environment"
-VENV_PYTHON=""
-if [[ -f ".venv/bin/python" ]]; then
-  VENV_PYTHON=".venv/bin/python"
-  VENV_PIP=".venv/bin/pip"
-  VENV_UVICORN=".venv/bin/uvicorn"
-  VENV_STREAMLIT=".venv/bin/streamlit"
-  source .venv/bin/activate
-  success "Activated .venv"
+VENV_PYTHON="python3"
+VENV_PIP="pip3"
+VENV_UVICORN="uvicorn"
+VENV_STREAMLIT="streamlit"
+
+if [[ -f /.dockerenv ]]; then
+  info "Running inside Docker container. Using system Python and dependencies."
+  success "Virtual environment check skipped"
 else
-  warn ".venv not found — creating one with python3"
-  python3 -m venv .venv
-  source .venv/bin/activate
-  VENV_PYTHON=".venv/bin/python"
-  VENV_PIP=".venv/bin/pip"
-  VENV_UVICORN=".venv/bin/uvicorn"
-  VENV_STREAMLIT=".venv/bin/streamlit"
-  info "Installing dependencies via pip (pyproject.toml / uv.lock)..."
-  if command -v uv &>/dev/null; then
-    uv pip install -e . --quiet
+  if [[ -f ".venv/bin/python" ]]; then
+    VENV_PYTHON=".venv/bin/python"
+    VENV_PIP=".venv/bin/pip"
+    VENV_UVICORN=".venv/bin/uvicorn"
+    VENV_STREAMLIT=".venv/bin/streamlit"
+    source .venv/bin/activate
+    success "Activated .venv"
   else
-    pip install -e . --quiet
+    warn ".venv not found — creating one with python3"
+    python3 -m venv .venv
+    source .venv/bin/activate
+    VENV_PYTHON=".venv/bin/python"
+    VENV_PIP=".venv/bin/pip"
+    VENV_UVICORN=".venv/bin/uvicorn"
+    VENV_STREAMLIT=".venv/bin/streamlit"
+    info "Installing dependencies via pip (pyproject.toml / uv.lock)..."
+    if command -v uv &>/dev/null; then
+      uv pip install -e . --quiet
+    else
+      pip install -e . --quiet
+    fi
+    success "Dependencies installed"
   fi
-  success "Dependencies installed"
 fi
 
-# ── 2. docker — redis, qdrant & postgres ────────────────────
-header "Step 2 · Docker Services (Redis + Qdrant + Postgres)"
+# ── 2. database services ─────────────────────────────────────
+header "Step 2 · Database Services (Redis + Qdrant + Postgres)"
 
-if ! command -v docker &>/dev/null; then
-  error "Docker is not installed or not in PATH. Please install Docker Desktop."
-  exit 1
+# Check if Docker is required
+NEED_DOCKER=false
+if [[ "$REDIS_LOCAL" == "true" || "$QDRANT_LOCAL" == "true" || "$POSTGRES_LOCAL" == "true" ]]; then
+  NEED_DOCKER=true
 fi
 
-if ! docker info &>/dev/null 2>&1; then
-  error "Docker daemon is not running. Please start Docker Desktop and try again."
-  exit 1
+if $NEED_DOCKER; then
+  info "Local services detected. Checking Docker..."
+  if ! command -v docker &>/dev/null; then
+    error "Docker is not installed or not in PATH. Please install Docker Desktop."
+    exit 1
+  fi
+
+  if ! docker info &>/dev/null 2>&1; then
+    error "Docker daemon is not running. Please start Docker Desktop and try again."
+    exit 1
+  fi
+else
+  info "All database services are cloud-based. Skipping Docker checks."
 fi
-
-# Pull images if not already present (disabled to speed up start)
-# info "Ensuring Redis image is available..."
-# docker pull redis:7-alpine --quiet 2>&1 | tail -1 || true
-
-# info "Ensuring Qdrant image is available..."
-# docker pull qdrant/qdrant:latest --quiet 2>&1 | tail -1 || true
 
 # ── Redis ────────────────────────────────────────────────────
-REDIS_CONTAINER="movie-booking-redis"
-if nc -z 127.0.0.1 6379 &>/dev/null || lsof -i tcp:6379 &>/dev/null; then
-  success "Redis already running (port 6379 occupied)"
-elif docker ps --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
-  success "Redis container already running"
-else
-  if docker ps -a --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
-    info "Starting existing Redis container..."
-    docker start "$REDIS_CONTAINER" > /dev/null
+if [[ "$REDIS_LOCAL" == "true" ]]; then
+  REDIS_CONTAINER="movie-booking-redis"
+  if nc -z 127.0.0.1 6379 &>/dev/null || lsof -i tcp:6379 &>/dev/null; then
+    success "Redis already running (port 6379 occupied)"
+  elif docker ps --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+    success "Redis container already running"
   else
-    info "Creating and starting Redis container..."
-    docker run -d \
-      --name "$REDIS_CONTAINER" \
-      -p 6379:6379 \
-      --restart unless-stopped \
-      -e REDIS_ARGS="--appendonly yes" \
-      redis/redis-stack-server:latest > /dev/null
+    if docker ps -a --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+      info "Starting existing Redis container..."
+      docker start "$REDIS_CONTAINER" > /dev/null
+    else
+      info "Creating and starting Redis container..."
+      docker run -d \
+        --name "$REDIS_CONTAINER" \
+        -p 6379:6379 \
+        --restart unless-stopped \
+        -e REDIS_ARGS="--appendonly yes" \
+        redis/redis-stack-server:latest > /dev/null
+    fi
+    success "Redis started on port 6379"
   fi
-  success "Redis started on port 6379"
+else
+  info "Using remote/cloud Redis: $REDIS_URL_MASKED"
 fi
 
 # ── Qdrant ───────────────────────────────────────────────────
-QDRANT_CONTAINER="movie-booking-qdrant"
-if nc -z 127.0.0.1 6333 &>/dev/null || lsof -i tcp:6333 &>/dev/null; then
-  success "Qdrant already running (port 6333 occupied)"
-elif docker ps --format '{{.Names}}' | grep -q "^${QDRANT_CONTAINER}$"; then
-  success "Qdrant container already running"
-else
-  if docker ps -a --format '{{.Names}}' | grep -q "^${QDRANT_CONTAINER}$"; then
-    info "Starting existing Qdrant container..."
-    docker start "$QDRANT_CONTAINER" > /dev/null
+if [[ "$QDRANT_LOCAL" == "true" ]]; then
+  QDRANT_CONTAINER="movie-booking-qdrant"
+  if nc -z 127.0.0.1 6333 &>/dev/null || lsof -i tcp:6333 &>/dev/null; then
+    success "Qdrant already running (port 6333 occupied)"
+  elif docker ps --format '{{.Names}}' | grep -q "^${QDRANT_CONTAINER}$"; then
+    success "Qdrant container already running"
   else
-    info "Creating and starting Qdrant container..."
-    docker run -d \
-      --name "$QDRANT_CONTAINER" \
-      -p 6333:6333 \
-      -p 6334:6334 \
-      -v qdrant_movie_data:/qdrant/storage \
-      --restart unless-stopped \
-      qdrant/qdrant:latest > /dev/null
+    if docker ps -a --format '{{.Names}}' | grep -q "^${QDRANT_CONTAINER}$"; then
+      info "Starting existing Qdrant container..."
+      docker start "$QDRANT_CONTAINER" > /dev/null
+    else
+      info "Creating and starting Qdrant container..."
+      docker run -d \
+        --name "$QDRANT_CONTAINER" \
+        -p 6333:6333 \
+        -p 6334:6334 \
+        -v qdrant_movie_data:/qdrant/storage \
+        --restart unless-stopped \
+        qdrant/qdrant:latest > /dev/null
+    fi
+    success "Qdrant started on port 6333"
   fi
-  success "Qdrant started on port 6333"
+else
+  info "Using remote/cloud Qdrant: $QDRANT_URL"
 fi
 
 # ── PostgreSQL ───────────────────────────────────────────────
-POSTGRES_CONTAINER="movie-booking-postgres"
-if nc -z 127.0.0.1 5432 &>/dev/null || lsof -i tcp:5432 &>/dev/null; then
-  success "PostgreSQL already running (port 5432 occupied)"
-elif docker ps --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"; then
-  success "PostgreSQL container already running"
-else
-  if docker ps -a --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"; then
-    info "Starting existing PostgreSQL container..."
-    docker start "$POSTGRES_CONTAINER" > /dev/null
+if [[ "$POSTGRES_LOCAL" == "true" ]]; then
+  POSTGRES_CONTAINER="movie-booking-postgres"
+  if nc -z 127.0.0.1 5432 &>/dev/null || lsof -i tcp:5432 &>/dev/null; then
+    success "PostgreSQL already running (port 5432 occupied)"
+  elif docker ps --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"; then
+    success "PostgreSQL container already running"
   else
-    info "Creating and starting PostgreSQL container..."
-    docker run -d \
-      --name "$POSTGRES_CONTAINER" \
-      -p 5432:5432 \
-      -e POSTGRES_PASSWORD=postgres \
-      -e POSTGRES_USER=postgres \
-      -e POSTGRES_DB=postgres \
-      --restart unless-stopped \
-      postgres:15-alpine > /dev/null
+    if docker ps -a --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"; then
+      info "Starting existing PostgreSQL container..."
+      docker start "$POSTGRES_CONTAINER" > /dev/null
+    else
+      info "Creating and starting PostgreSQL container..."
+      docker run -d \
+        --name "$POSTGRES_CONTAINER" \
+        -p 5432:5432 \
+        -e POSTGRES_PASSWORD=postgres \
+        -e POSTGRES_USER=postgres \
+        -e POSTGRES_DB=postgres \
+        --restart unless-stopped \
+        postgres:15-alpine > /dev/null
+    fi
+    success "PostgreSQL started on port 5432"
   fi
-  success "PostgreSQL started on port 5432"
-fi
-
-# Determine active Redis and PostgreSQL container names for health check
-ACTIVE_REDIS_CONTAINER=$(docker ps --filter "publish=6379" --format "{{.Names}}" | head -n 1)
-if [[ -z "$ACTIVE_REDIS_CONTAINER" ]]; then
-  ACTIVE_REDIS_CONTAINER="$REDIS_CONTAINER"
-fi
-
-ACTIVE_POSTGRES_CONTAINER=$(docker ps --filter "publish=5432" --format "{{.Names}}" | head -n 1)
-if [[ -z "$ACTIVE_POSTGRES_CONTAINER" ]]; then
-  ACTIVE_POSTGRES_CONTAINER="$POSTGRES_CONTAINER"
+else
+  info "Using remote/cloud PostgreSQL: $SUPABASE_URL_MASKED"
 fi
 
 # Wait for services to be ready
-info "Waiting for services to be healthy..."
-for i in {1..15}; do
-  REDIS_OK=false
-  QDRANT_OK=false
-  POSTGRES_OK=false
+info "Waiting for database services to be healthy..."
 
-  docker exec "$ACTIVE_REDIS_CONTAINER" redis-cli ping &>/dev/null && REDIS_OK=true
-  curl -sf http://localhost:6333/healthz &>/dev/null && QDRANT_OK=true
-  
-  if nc -z 127.0.0.1 5432 &>/dev/null; then
-    if docker ps --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER}$"; then
-      docker exec "$ACTIVE_POSTGRES_CONTAINER" pg_isready -U postgres &>/dev/null && POSTGRES_OK=true
-    else
-      POSTGRES_OK=true
+REDIS_OK=false
+QDRANT_OK=false
+POSTGRES_OK=false
+
+for i in {1..15}; do
+  # 1. Check Redis
+  if [[ "$REDIS_LOCAL" == "true" ]]; then
+    ACTIVE_REDIS_CONTAINER=$(docker ps --filter "publish=6379" --format "{{.Names}}" | head -n 1 || echo "")
+    if [[ -n "$ACTIVE_REDIS_CONTAINER" ]]; then
+      docker exec "$ACTIVE_REDIS_CONTAINER" redis-cli ping &>/dev/null && REDIS_OK=true
     fi
+  else
+    $VENV_PYTHON -c "
+import redis
+try:
+    r = redis.from_url('$REDIS_URL')
+    if r.ping():
+        exit(0)
+except Exception as e:
+    pass
+exit(1)
+" &>/dev/null && REDIS_OK=true
+  fi
+
+  # 2. Check Qdrant
+  if [[ "$QDRANT_LOCAL" == "true" ]]; then
+    curl -sf http://localhost:6333/healthz &>/dev/null && QDRANT_OK=true
+  else
+    QDRANT_KEY_TO_USE="${QDRANT_API_KEY:-$QDRANT_API}"
+    $VENV_PYTHON -c "
+from qdrant_client import QdrantClient
+try:
+    client = QdrantClient(url='$QDRANT_URL', api_key='$QDRANT_KEY_TO_USE' if '$QDRANT_KEY_TO_USE' else None)
+    client.get_collections()
+    exit(0)
+except Exception as e:
+    pass
+exit(1)
+" &>/dev/null && QDRANT_OK=true
+  fi
+
+  # 3. Check Postgres
+  if [[ "$POSTGRES_LOCAL" == "true" ]]; then
+    if nc -z 127.0.0.1 5432 &>/dev/null; then
+      ACTIVE_POSTGRES_CONTAINER=$(docker ps --filter "publish=5432" --format "{{.Names}}" | head -n 1 || echo "")
+      if [[ -n "$ACTIVE_POSTGRES_CONTAINER" ]]; then
+        docker exec "$ACTIVE_POSTGRES_CONTAINER" pg_isready -U postgres &>/dev/null && POSTGRES_OK=true
+      else
+        POSTGRES_OK=true
+      fi
+    fi
+  else
+    $VENV_PYTHON -c "
+import psycopg2
+try:
+    conn = psycopg2.connect('$SUPABASE_DB_URL')
+    conn.close()
+    exit(0)
+except Exception as e:
+    pass
+exit(1)
+" &>/dev/null && POSTGRES_OK=true
   fi
 
   if $REDIS_OK && $QDRANT_OK && $POSTGRES_OK; then
     break
   fi
+
   echo -n "."
-  sleep 1
+  sleep 1.5
 done
 echo ""
 
 if ! $REDIS_OK; then
-  error "Redis did not become healthy in time."
+  error "Failed to connect to Redis at $REDIS_URL_MASKED"
   exit 1
 fi
 if ! $QDRANT_OK; then
-  error "Qdrant did not become healthy in time."
+  error "Failed to connect to Qdrant at $QDRANT_URL"
   exit 1
 fi
 if ! $POSTGRES_OK; then
-  error "PostgreSQL did not become healthy in time."
+  error "Failed to connect to PostgreSQL at $SUPABASE_URL_MASKED"
   exit 1
 fi
-success "Redis, Qdrant, and PostgreSQL are healthy ✓"
+
+success "All database services are connected and healthy ✓"
 
 # ── 3. seed / ingest data ───────────────────────────────────
 header "Step 3 · Data Ingestion (Policy Docs → Qdrant)"
@@ -220,7 +337,7 @@ success "Data ingestion complete"
 # ── 4. start FastAPI backend ─────────────────────────────────
 header "Step 4 · FastAPI Backend"
 BACKEND_PORT=8005
-info "Starting FastAPI on http://127.0.0.1:$BACKEND_PORT ..."
+info "Starting FastAPI on http://$BIND_ADDRESS:$BACKEND_PORT ..."
 
 # Kill any stale uvicorn on our port
 if lsof -ti tcp:$BACKEND_PORT &>/dev/null; then
@@ -232,11 +349,11 @@ fi
 LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
 
+# Backend logs go directly to stdout/terminal as requested
 $VENV_UVICORN main:app \
-  --host 127.0.0.1 \
+  --host $BIND_ADDRESS \
   --port $BACKEND_PORT \
-  --log-level info \
-  > "$LOG_DIR/backend.log" 2>&1 &
+  --log-level info &
 
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$LOG_DIR/backend.pid"
@@ -244,7 +361,7 @@ echo "$BACKEND_PID" > "$LOG_DIR/backend.pid"
 # Wait for backend to be ready
 info "Waiting for backend to start..."
 for i in {1..20}; do
-  if curl -sf "http://127.0.0.1:$BACKEND_PORT/" &>/dev/null; then
+  if curl -sf "http://$BIND_ADDRESS:$BACKEND_PORT/" &>/dev/null; then
     break
   fi
   sleep 1
@@ -252,12 +369,11 @@ for i in {1..20}; do
 done
 echo ""
 
-if ! curl -sf "http://127.0.0.1:$BACKEND_PORT/" &>/dev/null; then
-  error "Backend failed to start. Check $LOG_DIR/backend.log"
-  cat "$LOG_DIR/backend.log" | tail -20
+if ! curl -sf "http://$BIND_ADDRESS:$BACKEND_PORT/" &>/dev/null; then
+  error "Backend failed to start."
   exit 1
 fi
-success "FastAPI backend running  (PID $BACKEND_PID)  → http://127.0.0.1:$BACKEND_PORT"
+success "FastAPI backend running  (PID $BACKEND_PID)  → http://$BIND_ADDRESS:$BACKEND_PORT"
 
 # ── 5. start Streamlit frontend ──────────────────────────────
 header "Step 5 · Streamlit Frontend"
@@ -270,12 +386,12 @@ if lsof -ti tcp:$STREAMLIT_PORT &>/dev/null; then
   sleep 1
 fi
 
-info "Launching Streamlit on http://localhost:$STREAMLIT_PORT ..."
+info "Launching Streamlit on http://$BIND_ADDRESS:$STREAMLIT_PORT ..."
 
 $VENV_STREAMLIT run app.py \
   --server.port $STREAMLIT_PORT \
-  --server.address 127.0.0.1 \
-  --server.headless false \
+  --server.address $BIND_ADDRESS \
+  --server.headless $HEADLESS_MODE \
   > "$LOG_DIR/streamlit.log" 2>&1 &
 
 STREAMLIT_PID=$!
@@ -294,12 +410,12 @@ echo ""
 
 success "Streamlit running  (PID $STREAMLIT_PID)  → http://localhost:$STREAMLIT_PORT"
 
-# ── done ─────────────────────────────────────────────────────
 header "🎬  All Systems Running!"
 echo -e "
   ${BOLD}Services:${RESET}
-    Redis       →  localhost:6379
-    Qdrant      →  http://localhost:6333
+    Redis       →  $REDIS_URL_MASKED
+    Qdrant      →  $QDRANT_URL
+    Postgres    →  $SUPABASE_URL_MASKED
     FastAPI     →  http://127.0.0.1:$BACKEND_PORT
     Streamlit   →  http://localhost:$STREAMLIT_PORT   ${GREEN}← open this in your browser${RESET}
 

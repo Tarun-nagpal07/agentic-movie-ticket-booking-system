@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 def confirm_node(state: dict) -> dict:
     draft = state.get("booking_draft")
 
-    if not draft:
+    if not draft or draft.get("status") == "confirmed":
         return {}
 
     # pause here — user sees booking details and approves/rejects
@@ -21,12 +21,15 @@ def confirm_node(state: dict) -> dict:
 
     from langchain_core.messages import AIMessage
     from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+    from src.utils.confirmation_classifier import classify_confirmation_input
 
-    if decision not in ("Approve", "Reject"):
+    resolved_decision = classify_confirmation_input(decision)
+
+    if resolved_decision == "Query":
         logger.info("booking interrupted by conversational query. Redirecting to planner.")
         return {"booking_draft": None, "confirmed": False, "redirect_to_planner": True}
 
-    if decision != "Approve":
+    if resolved_decision != "Approve":
         logger.info(f"booking rejected by user")
         msg = AIMessage(content="Your booking draft has been cancelled.")
         return {"booking_draft": None, "confirmed": False, "messages": [msg]}

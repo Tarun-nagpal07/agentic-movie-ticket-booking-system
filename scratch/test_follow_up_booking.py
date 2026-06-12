@@ -61,7 +61,8 @@ def run_tests():
 
     print("Invoking booking_node...")
     try:
-        res = booking_node(state)
+        config = {"configurable": {"user_id": "u1", "thread_id": "test_thread"}}
+        res = booking_node(state, config)
         print("\n--- Response Messages ---")
         for msg in res["messages"]:
             print(f"[{msg.type}]: {msg.content}")

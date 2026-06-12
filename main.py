@@ -89,6 +89,27 @@ def get_active_interrupt(snapshot):
         for task in snapshot.tasks:
             if task.interrupts:
                 return task.interrupts[0].value
+                
+    # Fallback for Redis checkpointer where tasks/interrupts might not be serialized correctly
+    if snapshot.next:
+        next_node = snapshot.next[0] if isinstance(snapshot.next, tuple) else snapshot.next
+        if next_node == "confirm_node":
+            draft = snapshot.values.get("booking_draft")
+            if draft and draft.get("status") == "pending":
+                return {
+                    "message": "Confirm your booking?",
+                    "data": draft,
+                    "options": ["Approve", "Reject"]
+                }
+        elif next_node == "cancel_confirm_node":
+            cancel_draft = snapshot.values.get("cancel_draft")
+            if cancel_draft and cancel_draft.get("status") != "cancelled":
+                return {
+                    "message": f"Cancel booking for {cancel_draft['show_date']} at {cancel_draft['show_time']}? "
+                               f"Refund: ₹{cancel_draft['refund_amount']} ({cancel_draft['refund_message']})",
+                    "data": cancel_draft,
+                    "options": ["Approve", "Reject"]
+                }
     return None
 
 
@@ -220,11 +241,16 @@ class QueueCallbackHandler(BaseCallbackHandler):
         self.q.put({"type": "status", "content": f"Retrieving database records ({nice_name})..."})
 
 
-def run_graph_in_thread(inputs, config, q: queue.Queue):
+def run_graph_in_thread(inputs, config, q: queue.Queue, resume_value: str | None = None):
     try:
-        graph.invoke(inputs, config)
+        if resume_value is not None:
+            graph.invoke(Command(resume=resume_value, update=inputs), config)
+        else:
+            graph.invoke(inputs, config)
         snapshot = graph.get_state(config)
         interrupt_info = get_active_interrupt(snapshot)
+        logger.info(f"[HITL-DEBUG] graph finished. interrupt_info={'present: ' + str(interrupt_info.get('message')) if interrupt_info else 'None'}")
+        logger.info(f"[HITL-DEBUG] snapshot.next={snapshot.next}")
         all_messages = snapshot.values.get("messages", [])
         
         # Append only genuinely new messages to PostgreSQL, never overwrite full history
@@ -241,6 +267,7 @@ def run_graph_in_thread(inputs, config, q: queue.Queue):
         }
         if interrupt_info:
             complete_event["interrupt"] = interrupt_info
+            logger.info(f"[HITL-DEBUG] sending complete event with status=requires_confirmation, interrupt keys={list(interrupt_info.keys())}")
         q.put(complete_event)
     except Exception as e:
         logger.error(f"Error in graph execution thread: {str(e)}", exc_info=True)
@@ -266,7 +293,8 @@ async def chat_stream_endpoint(request: ChatRequest):
         }
         
         # Check if Redis checkpointer has existing state
-        if not graph.get_state(config).values.get("messages"):
+        snapshot = graph.get_state(config)
+        if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(request.user_id, request.thread_id)
             if db_messages:
@@ -287,7 +315,11 @@ async def chat_stream_endpoint(request: ChatRequest):
                     "memory": user_memory or {}
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages + memory from Supabase")
+                snapshot = graph.get_state(config)
                 
+        interrupt_info = get_active_interrupt(snapshot)
+        resume_value = request.message if interrupt_info else None
+
         inputs = {
             "messages": [HumanMessage(content=request.message)],
             "user_id": request.user_id,
@@ -305,7 +337,7 @@ async def chat_stream_endpoint(request: ChatRequest):
         
         # Run graph in thread pool executor
         loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, run_graph_in_thread, inputs, config, q)
+        loop.run_in_executor(None, run_graph_in_thread, inputs, config, q, resume_value)
         
         async def event_generator():
             while True:
@@ -365,21 +397,27 @@ async def chat_endpoint(request: ChatRequest):
                     "memory": user_memory or {}
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages + memory from Supabase")
+                snapshot = graph.get_state(config)
+
+        interrupt_info = get_active_interrupt(snapshot)
 
         # Add Langfuse callback handler if available
         langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
         if langfuse_cb:
             config["callbacks"] = [langfuse_cb]
 
-        # Invoke the graph with user_id and the new user message
-        graph.invoke(
-            {
-                "messages": [HumanMessage(content=request.message)],
-                "user_id": request.user_id,
-                "thread_id": request.thread_id
-            },
-            config
-        )
+        inputs = {
+            "messages": [HumanMessage(content=request.message)],
+            "user_id": request.user_id,
+            "thread_id": request.thread_id
+        }
+
+        # Invoke the graph with user_id and the new user message (resume if interrupted)
+        if interrupt_info:
+            logger.info(f"Resuming active interrupt on chat endpoint with: {request.message}")
+            graph.invoke(Command(resume=request.message, update=inputs), config)
+        else:
+            graph.invoke(inputs, config)
 
         # Retrieve current snapshot after invocation (either completed or paused on interrupt)
         snapshot = graph.get_state(config)

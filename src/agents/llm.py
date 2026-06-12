@@ -21,7 +21,7 @@ def get_llm(structure: bool = False):
     fallbacks = []
 
     if settings.GROQ_API_KEY: 
-        logger.info("Configuring Qwen/qwen3-32b via Groq as fallback LLM.")
+        logger.info("Configuring OpenAI/gpt-oss via Groq as fallback LLM.")
         try:
                 groq_llm = ChatGroq(
                     model=settings.FIRST_FALLBACK_LLM,
@@ -32,7 +32,7 @@ def get_llm(structure: bool = False):
                 )
                 fallbacks.append(groq_llm)
         except Exception as e:
-            logger.error(f"Failed to initialize Qwen via Groq fallback: {e}")
+            logger.error(f"Failed to initialize OpenAI/gpt-oss via Groq fallback: {e}")
 
 
     # Hugging Face serverless endpoints do not support Pydantic schema function calling (with_structured_output)

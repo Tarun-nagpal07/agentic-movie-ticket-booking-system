@@ -9,10 +9,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     BASE_URL: str
     LLM_MODEL: str = Field(default="gpt-4o-mini")
-    FIRST_FALLBACK_LLM :str = Field(default="qwen/qwen3-32b")
+    FIRST_FALLBACK_LLM :str = Field(default="openai/gpt-oss-120b")
     SECOND_FALLBACK_LLM :str = Field(default="meta-llama/Llama-3.1-70B-Instruct")
     REDIS_URL: str
     QDRANT_URL: str
+    QDRANT_API: str = Field(default="")
+    QDRANT_API_KEY: str = Field(default="")
     SUPABASE_DB_URL: str = Field(default="")
     OPENROUTER_API_KEY: str = Field(default="")
     GROQ_API_KEY: str = Field(default="")

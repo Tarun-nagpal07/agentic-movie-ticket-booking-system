@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 def cancel_confirm_node(state: dict) -> dict:
     cancel_draft = state.get("cancel_draft")
 
-    if not cancel_draft:
+    if not cancel_draft or cancel_draft.get("status") == BookingStatus.CANCELLED:
         return {}
 
     # pause — show user what they're cancelling and refund amount
@@ -23,12 +23,15 @@ def cancel_confirm_node(state: dict) -> dict:
 
     from langchain_core.messages import AIMessage
     from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+    from src.utils.confirmation_classifier import classify_confirmation_input
 
-    if decision not in ("Approve", "Reject"):
+    resolved_decision = classify_confirmation_input(decision)
+
+    if resolved_decision == "Query":
         logger.info("cancellation interrupted by conversational query. Redirecting to planner.")
         return {"cancel_draft": None, "confirmed": False, "redirect_to_planner": True}
 
-    if decision != "Approve":
+    if resolved_decision != "Approve":
         logger.info(f"cancellation rejected by user for booking {cancel_draft['booking_id']}")
         msg = AIMessage(content="Your cancellation request was rejected. The booking remains active.")
         return {"cancel_draft": None, "confirmed": False, "messages": [msg]}

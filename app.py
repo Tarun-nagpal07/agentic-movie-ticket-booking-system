@@ -2,19 +2,20 @@ import streamlit as st
 import requests
 import json
 import os
-
+from src.utils.logger import get_logger
+logger = get_logger("streamlit_app")
 # Set page layout and design theme
 st.set_page_config(
     page_title="Cinemagic — Agentic Booking Portal",
     page_icon="🎬",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="expanded"
 )
 
 # API endpoint configurations
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8005")
 
-# Premium CSS styling with custom fonts, glassmorphism, and gradient banners
+# Clean solid dark theme CSS styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
@@ -23,155 +24,183 @@ st.markdown("""
         font-family: 'Outfit', sans-serif;
     }
     
-    /* Main Background & Gradient Banner */
+    /* Main Background & Clean Solid Black Theme */
     .stApp {
-        background-color: #0B0B14 !important;
-        background-image: 
-            radial-gradient(at 0% 0%, rgba(112, 0, 255, 0.09) 0px, transparent 55%),
-            radial-gradient(at 100% 100%, rgba(255, 51, 102, 0.07) 0px, transparent 55%) !important;
-        background-attachment: fixed !important;
+        background-color: #000000 !important;
+        background-image: none !important;
+        background-attachment: scroll !important;
+    }
+    
+    /* Sidebar Background styling */
+    [data-testid="stSidebar"] {
+        background-color: #121212 !important;
     }
     
     .banner-title {
-        background: linear-gradient(135deg, #FF3366 0%, #7000FF 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #F8FAFC !important;
         font-weight: 700;
-        font-size: 3rem;
+        font-size: 2.5rem;
         margin-bottom: 0.2rem;
     }
     
     .banner-subtitle {
-        color: #8E8EA8;
-        font-size: 1.1rem;
+        color: #94A3B8;
+        font-size: 1rem;
         margin-bottom: 2rem;
     }
     
-    /* Glassmorphic Cards */
+    /* Simple Cards */
     .glass-card {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 16px;
-        padding: 1.5rem;
-        backdrop-filter: blur(10px);
-        margin-bottom: 1.5rem;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+        background: #1E293B;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin-bottom: 1.2rem;
     }
     
     .glass-header {
         font-weight: 600;
-        font-size: 1.2rem;
-        margin-bottom: 1rem;
-        color: #E2E2E9;
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+        color: #F1F5F9;
         display: flex;
         align-items: center;
         gap: 0.5rem;
     }
     
-    /* Glowing Glassmorphic Chat Messages */
+    /* Simple Dark Chat Messages */
     [data-testid="stChatMessage"] {
-        background: rgba(255, 255, 255, 0.02) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        border-radius: 16px !important;
+        background: #1E293B !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
         padding: 1rem 1.25rem !important;
         margin-bottom: 1rem !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important;
-        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+        box-shadow: none !important;
+        transition: border-color 0.15s ease !important;
     }
     [data-testid="stChatMessage"]:hover {
-        border-color: rgba(112, 0, 255, 0.25) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(112, 0, 255, 0.12) !important;
+        border-color: #475569 !important;
     }
     
     /* Custom style for Streamlit Chat Input */
     [data-testid="stChatInput"] {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border-radius: 14px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        background: #1E293B !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
     }
     [data-testid="stChatInput"]:focus-within {
-        border-color: #7000FF !important;
-        box-shadow: 0 0 12px rgba(112, 0, 255, 0.25) !important;
+        border-color: #334155 !important;
+        box-shadow: none !important;
     }
     [data-testid="stChatInput"] textarea {
+        color: #F8FAFC !important;
+    }
+    
+    /* Hide top primary colored decoration line */
+    [data-testid="stDecoration"] {
         background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        color: #FFFFFF !important;
+        background-image: none !important;
+        display: none !important;
     }
     
-    /* Glassmorphic Error/Warning Alert Card */
+    /* Simple Error/Warning Alert Card */
     .glass-error-card {
-        background: rgba(239, 68, 68, 0.08);
-        border: 1px solid rgba(239, 68, 68, 0.25);
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        color: #FCA5A5;
-        backdrop-filter: blur(8px);
-        margin: 1.2rem 0;
-        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.12);
-        animation: shake 0.4s ease-in-out;
-    }
-    
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-4px); }
-        75% { transform: translateX(4px); }
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 0.8rem 1.2rem;
+        color: #FCA3A3;
+        margin: 1rem 0;
     }
     
     /* Custom Badges */
     .status-badge {
         display: inline-block;
-        padding: 0.25rem 0.6rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
         font-weight: 600;
         text-transform: uppercase;
     }
     .status-confirmed {
         background-color: rgba(16, 185, 129, 0.15);
-        color: #10B981;
+        color: #34D399;
         border: 1px solid rgba(16, 185, 129, 0.3);
     }
     .status-cancelled {
         background-color: rgba(239, 68, 68, 0.15);
-        color: #EF4444;
+        color: #F87171;
         border: 1px solid rgba(239, 68, 68, 0.3);
     }
     .status-pending {
         background-color: rgba(245, 158, 11, 0.15);
-        color: #F59E0B;
+        color: #FBBF24;
         border: 1px solid rgba(245, 158, 11, 0.3);
     }
     
-    /* Movie Showcase Card */
-    .movie-card {
-        padding: 0.8rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    
-    .movie-title {
-        font-weight: 600;
-        color: #FFFFFF;
-        font-size: 1rem;
-    }
-    
-    .movie-meta {
-        font-size: 0.8rem;
-        color: #8E8EA8;
-        margin-top: 0.2rem;
-    }
- 
-    /* Interactive Draft confirmation banner */
+    /* Interactive confirmation box */
     .confirmation-box {
-        background: linear-gradient(135deg, rgba(112, 0, 255, 0.1) 0%, rgba(255, 51, 102, 0.1) 100%);
-        border: 1.5px solid rgba(112, 0, 255, 0.3);
-        border-radius: 16px;
+        background: #1E293B;
+        border: 1.5px solid #334155;
+        border-radius: 12px;
         padding: 1.5rem;
         margin: 1.5rem 0;
-        box-shadow: 0 10px 40px rgba(112, 0, 255, 0.15);
+    }
+    
+    /* Thread list styling to remove internal border and padding */
+    .thread-item-list [data-testid="stVerticalBlockBorderDiv"] {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    
+    /* Remove borders and backgrounds from edit (✏️) and delete (🗑️) buttons in the thread list */
+    .thread-item-list [data-testid="column"]:nth-child(2) button,
+    .thread-item-list [data-testid="column"]:nth-child(3) button {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        color: #94A3B8 !important;
+        min-height: 0 !important;
+        height: 38px !important;
+        line-height: 38px !important;
+    }
+    .thread-item-list [data-testid="column"]:nth-child(2) button:hover,
+    .thread-item-list [data-testid="column"]:nth-child(3) button:hover {
+        color: #F8FAFC !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    
+    /* Hide container borders in sidebar */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderDiv"] {
+        border: none !important;
+    }
+
+    /* Gen-AI Typing Indicator */
+    .typing-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 6px 10px;
+        border-radius: 8px;
+    }
+    .typing-dot {
+        width: 6px;
+        height: 6px;
+        background-color: #94A3B8;
+        border-radius: 50%;
+        animation: typing-pulse 1.4s infinite ease-in-out both;
+    }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes typing-pulse {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+        40% { transform: scale(1.1); opacity: 1; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -243,6 +272,13 @@ def generate_random_thread_name():
 
 if "user_id" not in st.session_state:
     st.session_state.user_id = "u1"
+
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+
+if "current_prompt" not in st.session_state:
+    st.session_state.current_prompt = None
+
 
 # Check if we have a pending user input from a previous redirection (to clear the active interrupt)
 user_input_from_state = None
@@ -380,7 +416,8 @@ with st.sidebar:
 
     if db_threads:
         st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; margin-bottom: 0.5rem;">Saved Chats:</div>', unsafe_allow_html=True)
-        with st.container(height=200):
+        st.markdown('<div class="thread-item-list">', unsafe_allow_html=True)
+        with st.container(height=400, border=False):
             for t in db_threads:
                 if st.session_state.renaming_thread == t:
                     col_input, col_save, col_cancel = st.columns([6, 1.5, 1.5])
@@ -448,59 +485,13 @@ with st.sidebar:
                                     st.toast(f"⚠️ Failed to delete thread: {res.text}", icon="⚠️")
                             except Exception as ex:
                                 st.toast(f"⚠️ Error: {str(ex)}", icon="⚠️")
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; text-align:center; padding: 10px 0;">No saved chats.</div>', unsafe_allow_html=True)
             
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ----------------- ACTIVE BOOKINGS PANEL -----------------
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="glass-header">🎟️ My Bookings</div>', unsafe_allow_html=True)
-    
-    bookings = load_bookings_db()
-    user_bookings = [b for b in bookings.values() if b.get("user_id") == st.session_state.user_id]
-    
-    if user_bookings:
-        # Sort bookings by date descending
-        user_bookings.sort(key=lambda x: x.get("booked_at", ""), reverse=True)
-        for b in user_bookings:
-            status_class = f"status-{b.get('status', 'confirmed')}"
-            movie_title = b.get('movie_title') or get_movie_title(b.get('movie_id'))
-            theater_name = b.get('theater_name') or get_theater_name(b.get('theater_id'))
-            st.markdown(f"""
-            <div style="padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:600; color:#FFFFFF;">{movie_title}</span>
-                    <span class="status-badge {status_class}">{b.get('status')}</span>
-                </div>
-                <div style="font-size:0.8rem; color:#8E8EA8; margin-top:0.25rem;">
-                    📍 {theater_name} | ID: <code>{b.get('booking_id')}</code><br>
-                    🗓️ {b.get('show_date')} at {b.get('show_time')}<br>
-                    💺 Seats: {', '.join(b.get('seats', []))} | Total: ₹{b.get('total_price')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown('<div style="font-size:0.85rem; color:#8E8EA8; text-align:center;">No active bookings found.</div>', unsafe_allow_html=True)
-        
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ----------------- MOVIE SHOWCASE PANEL -----------------
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<div class="glass-header">🎬 Movies Now Showing</div>', unsafe_allow_html=True)
-    
-    movies = load_movies_db()
-    for m in movies[:4]: # Show top 4
-        st.markdown(f"""
-        <div class="movie-card">
-            <div class="movie-title">{m.get('title')}</div>
-            <div class="movie-meta">
-                ⭐ {m.get('rating')} | ⏱️ {m.get('duration_min')} min | 🌐 {m.get('language')}<br>
-                🎭 {', '.join(m.get('genre'))}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ----------------- MAIN LAYOUT: CHAT INTERFACE -----------------
@@ -641,13 +632,26 @@ if is_interrupted and interrupt_payload:
                 
     st.markdown('</div>', unsafe_allow_html=True)
 
+def cancel_execution_callback():
+    st.session_state.processing = False
+    st.session_state.current_prompt = None
+    st.session_state.chat_history.append({
+        "role": "assistant",
+        "content": "❌ Execution cancelled by user."
+    })
+    st.toast("Execution cancelled.", icon="🚫")
+
 # User Chat Input
-user_input = st.chat_input("Ask Cinemagic to search, book, recommend, cancel, or look up policies...")
+input_disabled = st.session_state.processing
+user_input = st.chat_input(
+    "Ask Cinemagic to search, book, recommend, cancel, or look up policies...",
+    disabled=input_disabled
+)
 
 if user_input_from_state:
     user_input = user_input_from_state
 
-if user_input:
+if user_input and not st.session_state.processing:
     # If the user is submitting a new message while an interrupt is active,
     # immediately clear the interrupt and rerun to hide the confirmation box from the screen
     if st.session_state.is_interrupted:
@@ -656,14 +660,29 @@ if user_input:
         st.session_state.interrupt_payload = None
         st.rerun()
 
+    st.session_state.processing = True
+    st.session_state.current_prompt = user_input
+    st.rerun()
+
+if st.session_state.processing and st.session_state.current_prompt:
     # Append user message and stream assistant reply inside the chat container
     with chat_container:
         with st.chat_message("user"):
-            st.markdown(user_input)
+            st.markdown(st.session_state.current_prompt)
             
         with st.chat_message("assistant"):
             status_placeholder = st.empty()
             response_placeholder = st.empty()
+            cancel_placeholder = st.empty()
+            
+            # Show Cancel button
+            cancel_placeholder.button(
+                "🚫 Cancel Execution",
+                key="cancel_stream",
+                on_click=cancel_execution_callback,
+                type="secondary"
+            )
+            
             full_response = ""
             complete_payload = None
             error_msg = None
@@ -672,8 +691,21 @@ if user_input:
                 payload = {
                     "user_id": st.session_state.user_id,
                     "thread_id": st.session_state.thread_id,
-                    "message": user_input
+                    "message": st.session_state.current_prompt
                 }
+                
+                # Show initial typing animation with loading status
+                status_placeholder.markdown("""
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                    <span style="color: #94A3B8; font-size: 0.9rem; font-style: italic;">Initializing Cinemagic assistant...</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
                 # Make a streaming POST request
                 res = requests.post(f"{API_BASE_URL}/chat/stream", json=payload, stream=True)
                 
@@ -686,7 +718,16 @@ if user_input:
                                 event_type = data.get("type")
                                 
                                 if event_type == "status":
-                                    status_placeholder.markdown(f"⏳ *{data.get('content')}*")
+                                    status_placeholder.markdown(f"""
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                        <div class="typing-indicator">
+                                            <div class="typing-dot"></div>
+                                            <div class="typing-dot"></div>
+                                            <div class="typing-dot"></div>
+                                        </div>
+                                        <span style="color: #94A3B8; font-size: 0.9rem; font-style: italic;">{data.get('content')}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                                 elif event_type == "token":
                                     # Clear status loading message on the first token arrival
                                     status_placeholder.empty()
@@ -699,6 +740,7 @@ if user_input:
                                     
                     # Clean up the cursor and status
                     status_placeholder.empty()
+                    cancel_placeholder.empty()
                     response_placeholder.markdown(full_response)
                     
                     if error_msg:
@@ -706,30 +748,26 @@ if user_input:
                             "role": "assistant",
                             "content": f"I encountered an error while processing: {error_msg}."
                         })
+                        st.session_state.processing = False
+                        st.session_state.current_prompt = None
                         st.session_state.is_interrupted = False
                         st.session_state.interrupt_payload = None
                         st.rerun()
                     elif complete_payload:
-                        # Always merge streamed AI message with full history from PostgreSQL.
-                        # Middleware may have trimmed the state, but we preserve everything here.
-                        server_msgs = complete_payload.get("messages", []) or []
+                        logger.info(f"[HITL-DEBUG] complete_payload status={complete_payload.get('status')}, has_interrupt={complete_payload.get('interrupt') is not None}")
+                        if complete_payload.get("interrupt"):
+                            logger.info(f"[HITL-DEBUG] interrupt_payload keys={list(complete_payload['interrupt'].keys())}")
                         
-                        # Always append the streamed AI message if it was successfully generated
-                        if full_response:
-                            # Build final history: server messages + streamed AI response
-                            final_history = list(server_msgs)
-                            # Only add if not already in server response (avoid duplicates)
-                            if not final_history or final_history[-1].get("role") != "assistant":
-                                final_history.append({"role": "assistant", "content": full_response})
-                            st.session_state.chat_history = final_history
-                        else:
-                            st.session_state.chat_history = server_msgs
-
-                        st.session_state.is_interrupted = complete_payload.get("status") == "requires_confirmation"
-                        st.session_state.interrupt_payload = complete_payload.get("interrupt")
+                        # Force a re-fetch of history + interrupt state from the backend on the next rerun.
+                        # This guarantees the interrupt is picked up from the Redis checkpointer,
+                        # even if the SSE complete_payload was malformed or the session state was lost.
+                        st.session_state.last_thread_id = None
+                        st.session_state.processing = False
+                        st.session_state.current_prompt = None
                         st.rerun()
                 elif res.status_code == 429:
                     status_placeholder.empty()
+                    cancel_placeholder.empty()
                     try:
                         detail = res.json().get("detail", "Too many requests.")
                     except Exception:
@@ -738,18 +776,26 @@ if user_input:
                         "role": "assistant",
                         "content": f"I'm sorry, I'm receiving too many requests right now: {detail} Please wait a few seconds and try again."
                     })
+                    st.session_state.processing = False
+                    st.session_state.current_prompt = None
                     st.rerun()
                 else:
                     status_placeholder.empty()
+                    cancel_placeholder.empty()
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "content": f"I'm sorry, I encountered a server error (HTTP {res.status_code}): {res.text}. Please try again."
                     })
+                    st.session_state.processing = False
+                    st.session_state.current_prompt = None
                     st.rerun()
             except Exception as e:
                 status_placeholder.empty()
+                cancel_placeholder.empty()
                 st.session_state.chat_history.append({
                     "role": "assistant",
                     "content": f"I am unable to connect to the backend assistant right now. Please make sure the backend server is running. (Error: {str(e)})"
                 })
+                st.session_state.processing = False
+                st.session_state.current_prompt = None
                 st.rerun()

@@ -13,8 +13,13 @@ _client: QdrantClient | None = None
 def get_qdrant_client() -> QdrantClient:
     global _client
     if _client is None:
-        _client = QdrantClient(url=settings.QDRANT_URL)
-        logger.info(f"Qdrant client connected to {settings.QDRANT_URL}")
+        api_key = settings.QDRANT_API_KEY or settings.QDRANT_API
+        if api_key:
+            _client = QdrantClient(url=settings.QDRANT_URL, api_key=api_key)
+            logger.info(f"Qdrant client connected to cloud Qdrant at {settings.QDRANT_URL}")
+        else:
+            _client = QdrantClient(url=settings.QDRANT_URL)
+            logger.info(f"Qdrant client connected to local Qdrant at {settings.QDRANT_URL}")
     return _client
 
 
