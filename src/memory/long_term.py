@@ -1,32 +1,20 @@
 import json
-from src.db.postgres import get_db_cursor
+from src.api import services
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 def get_user_memory(user_id: str) -> dict | None:
     """
-    Read user long-term memory (preferences) from PostgreSQL/Supabase.
-    Returns None if user not found - caller decides fallback.
+    Read user long-term memory (preferences and profile) from PostgreSQL/Supabase.
     """
     try:
-        with get_db_cursor() as cur:
-            cur.execute(
-                "SELECT preferences FROM user_preferences WHERE user_id = %s;",
-                (user_id,)
-            )
-            row = cur.fetchone()
-            if not row:
-                logger.warning(f"No long-term memory found in PostgreSQL for user {user_id}")
-                return None
-            
-            logger.info(f"Long-term memory loaded from PostgreSQL for user {user_id}")
-            # row[0] is already parsed if psycopg2 JSONB deserialization is active,
-            # or it is a dict/string. Let's make sure it is handled correctly.
-            preferences = row[0]
-            if isinstance(preferences, str):
-                return json.loads(preferences)
-            return preferences
+        user = services.get_user_by_id(user_id, include_bookings=True)
+        if not user:
+            logger.warning(f"No user memory found in PostgreSQL for user {user_id}")
+            return None
+        logger.info(f"Long-term memory loaded from PostgreSQL for user {user_id}")
+        return user
     except Exception as e:
         logger.warning(
             "PostgreSQL unavailable while loading long-term memory for user %s: %s",
@@ -41,17 +29,8 @@ def save_user_memory(user_id: str, data: dict) -> None:
     Write updated user memory to PostgreSQL/Supabase.
     """
     try:
-        with get_db_cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO user_preferences (user_id, preferences, updated_at)
-                VALUES (%s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) DO UPDATE
-                SET preferences = EXCLUDED.preferences, updated_at = CURRENT_TIMESTAMP;
-                """,
-                (user_id, json.dumps(data))
-            )
-            logger.info(f"Long-term memory saved in PostgreSQL for user {user_id}")
+        services.update_user_preferences(user_id, data)
+        logger.info(f"Long-term memory saved in PostgreSQL for user {user_id}")
     except Exception as e:
         logger.warning(
             "PostgreSQL unavailable while saving long-term memory for user %s: %s",
@@ -62,15 +41,18 @@ def save_user_memory(user_id: str, data: dict) -> None:
 
 def delete_user_memory(user_id: str) -> None:
     """
-    Delete user memory from PostgreSQL/Supabase.
+    Delete user memory (cannot fully delete user profile, so just resets preferences).
     """
     try:
-        with get_db_cursor() as cur:
-            cur.execute(
-                "DELETE FROM user_preferences WHERE user_id = %s;",
-                (user_id,)
-            )
-            logger.info(f"Long-term memory deleted from PostgreSQL for user {user_id}")
+        empty_prefs = {
+            "favorite_genres": [],
+            "preferred_theaters": [],
+            "preferred_seat_type": None,
+            "preferred_format": None,
+            "language_pref": "English"
+        }
+        services.update_user_preferences(user_id, empty_prefs)
+        logger.info(f"Long-term memory deleted/reset from PostgreSQL for user {user_id}")
     except Exception as e:
         logger.warning(
             "PostgreSQL unavailable while deleting long-term memory for user %s: %s",
@@ -81,24 +63,21 @@ def delete_user_memory(user_id: str) -> None:
 
 def update_user_memory(user_id: str, updates: dict) -> None:
     """
-    Partial update — merges updates into existing memory in PostgreSQL/Supabase.
+    Partial update — merges updates into existing preferences in PostgreSQL.
     """
     existing = get_user_memory(user_id) or {}
 
     # merge — lists append, scalars overwrite
     for key, value in updates.items():
+        if key == "booking_history":
+            # booking history is read-only, managed by bookings database table mutations
+            continue
         if isinstance(value, list) and isinstance(existing.get(key), list):
             # append unique items only
             existing[key] = list({
                 json.dumps(item) if isinstance(item, dict) else item
                 for item in existing[key] + value
             })
-            # if it's booking_history — deserialize back
-            if key == "booking_history":
-                existing[key] = [
-                    json.loads(i) if isinstance(i, str) else i
-                    for i in existing[key]
-                ]
         else:
             existing[key] = value
 

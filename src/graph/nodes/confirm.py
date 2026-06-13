@@ -1,7 +1,6 @@
 from langgraph.types import interrupt
 from src.utils.logger import get_logger
-from src.db.json_store import load_db, save_db
-from src.config.constants import DBFile, SeatStatus
+from src.api import services
 from src.utils.date_utils import get_now
 
 logger = get_logger(__name__)
@@ -34,43 +33,34 @@ def confirm_node(state: dict) -> dict:
         msg = AIMessage(content="Your booking draft has been cancelled.")
         return {"booking_draft": None, "confirmed": False, "messages": [msg]}
 
-    # write to JSON only after approval
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    bookings_db  = load_db(DBFile.BOOKINGS)
-
-    confirmed_draft = {
-        **draft,
-        "status":    "confirmed",
-        "booked_at": get_now()
-    }
-
-
-    bookings_db["bookings"][confirmed_draft["booking_id"]] = confirmed_draft
-    save_db(DBFile.BOOKINGS, bookings_db)
-
-    # flip seats
-    tid, mid, sid = draft["theater_id"], draft["movie_id"], draft["show_id"]
-    shows = showtimes_db["showtimes"][tid][mid]
-    show_index = next(i for i, s in enumerate(shows) if s["show_id"] == sid)
-    for seat in draft["seats"]:
-        showtimes_db["showtimes"][tid][mid][show_index]["seats"][seat] = SeatStatus.BOOKED
-    save_db(DBFile.SHOWTIMES, showtimes_db)
+    # write to Database only after approval
+    try:
+        confirmed_booking = services.create_booking(
+            user_id=draft["user_id"],
+            show_id=draft["show_id"],
+            seats=draft["seats"],
+            booking_id=draft["booking_id"]
+        )
+    except Exception as e:
+        logger.error(f"Failed to confirm booking {draft.get('booking_id')}: {e}", exc_info=True)
+        err_msg = AIMessage(content="❌ **Booking Failed**\n\nSorry, we could not confirm your booking because one or more seats are no longer available or the showtime is invalid.")
+        return {"booking_draft": None, "confirmed": False, "messages": [err_msg]}
 
     logger.info(f"booking {draft['booking_id']} confirmed")
 
-    movie_title = get_movie_title_by_id(confirmed_draft["movie_id"]) or "Movie"
-    theater_name = get_theater_name_by_id(confirmed_draft["theater_id"]) or "Theater"
-    seats_str = ", ".join(confirmed_draft["seats"])
+    movie_title = get_movie_title_by_id(confirmed_booking["movie_id"]) or "Movie"
+    theater_name = get_theater_name_by_id(confirmed_booking["theater_id"]) or "Theater"
+    seats_str = ", ".join(confirmed_booking["seats"])
     
     success_msg = AIMessage(content=f"🎉 **Booking Successful!**\n\n"
                                     f"Your booking has been confirmed.\n\n"
                                     f"**Booking Details:**\n"
                                     f"- **Movie:** {movie_title}\n"
                                     f"- **Theater:** {theater_name}\n"
-                                    f"- **Screen:** {confirmed_draft['screen_name']} (Screen {confirmed_draft['screen_no']})\n"
-                                    f"- **Date:** {confirmed_draft['show_date']}\n"
-                                    f"- **Time:** {confirmed_draft['show_time']}\n"
+                                    f"- **Screen:** {confirmed_booking['screen_name']} (Screen {confirmed_booking['screen_no']})\n"
+                                    f"- **Date:** {confirmed_booking['show_date']}\n"
+                                    f"- **Time:** {confirmed_booking['show_time']}\n"
                                     f"- **Seats:** {seats_str}\n"
-                                    f"- **Total Paid:** ₹{confirmed_draft['total_price']}")
+                                    f"- **Total Paid:** ₹{confirmed_booking['total_price']}")
 
-    return {"confirmed": True, "booking_draft": confirmed_draft, "last_booking_id": confirmed_draft["booking_id"], "messages": [success_msg]}
+    return {"confirmed": True, "booking_draft": confirmed_booking, "last_booking_id": confirmed_booking["booking_id"], "messages": [success_msg]}

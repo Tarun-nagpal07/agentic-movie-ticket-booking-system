@@ -1,11 +1,11 @@
 import re
 from src.utils.logger import get_logger
-from src.db.json_store import load_db, DBFile
 from src.schemas.show import get_available_seats_request, recommend_seats_request
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from src.utils.errors import handle_errors, ToolError
 from src.tools.booking_tools import _resolve_movie_name_to_id
+from src.api import services
 
 logger = get_logger(__name__)
 
@@ -41,27 +41,15 @@ def get_available_seats(
         if resolved:
             movie_id = resolved
 
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    theater_shows = showtimes_db["showtimes"].get(theater_id, {})
-
-    show = None
-    if movie_id:
-        movie_shows = theater_shows.get(movie_id, [])
-        show = next((s for s in movie_shows if s["show_id"] == show_id), None)
-    
-    if not show:
-        for mid, shows in theater_shows.items():
-            show = next((s for s in shows if s["show_id"] == show_id), None)
-            if show:
-                movie_id = mid
-                break
-
+    show = services.get_show_details(show_id)
     if not show:
         raise ToolError(
             message=f"No show found for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id}",
             code="NO_SHOWTIMES_FOUND",
             recoverable=True
         )
+
+    seats_dict = services.get_show_seats(show_id)
 
     # Filter seats to only available ones and group by row
     available_seats = []
@@ -75,10 +63,10 @@ def get_available_seats(
             return (row, int(num))
         return (seat_id, 0)
 
-    sorted_seat_ids = sorted(show["seats"].keys(), key=seat_sort_key)
+    sorted_seat_ids = sorted(seats_dict.keys(), key=seat_sort_key)
 
     for seat_id in sorted_seat_ids:
-        status = show["seats"][seat_id]
+        status = seats_dict[seat_id]
         if status == "available":
             row_letter = seat_id[0]
             stype = show["seat_types"].get(row_letter)
@@ -146,21 +134,18 @@ def recommend_seats(
     if not user_id and config:
         user_id = config.get("configurable", {}).get("user_id")
 
-    # Resolve preferred seat type from user booking history (direct json file load)
+    # Resolve preferred seat type from user booking history
     preferred_type = seat_type
     based_on = "explicit request" if seat_type else "best available"
     
     if not preferred_type and user_id:
         try:
-            bookings_db = load_db(DBFile.BOOKINGS)
-            user_bookings = [
-                b for b in bookings_db.get("bookings", {}).values()
-                if b.get("user_id") == user_id and b.get("status") == "confirmed"
-            ]
-            if user_bookings:
+            user_bookings = services.get_user_bookings(user_id)
+            confirmed = [b for b in user_bookings if b["status"] == "confirmed"]
+            if confirmed:
                 from collections import Counter
                 type_counts = Counter()
-                for b in user_bookings:
+                for b in confirmed:
                     st = b.get("seat_type")
                     if st:
                         type_counts[st] += 1
@@ -170,21 +155,7 @@ def recommend_seats(
         except Exception as e:
             logger.error(f"Error loading user booking history: {e}")
 
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    theater_shows = showtimes_db["showtimes"].get(theater_id, {})
-
-    show = None
-    if movie_id:
-        movie_shows = theater_shows.get(movie_id, [])
-        show = next((s for s in movie_shows if s["show_id"] == show_id), None)
-    
-    if not show:
-        for mid, shows in theater_shows.items():
-            show = next((s for s in shows if s["show_id"] == show_id), None)
-            if show:
-                movie_id = mid
-                break
-
+    show = services.get_show_details(show_id)
     if not show:
         raise ToolError(
             message=f"No show found for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id}",
@@ -192,8 +163,10 @@ def recommend_seats(
             recoverable=True
         )
 
+    seats_dict = services.get_show_seats(show_id)
+
     # Get all available seats
-    available_seats = {s for s, status in show["seats"].items() if status == "available"}
+    available_seats = {s for s, status in seats_dict.items() if status == "available"}
 
     if len(available_seats) < num_seats:
         raise ToolError(
@@ -204,7 +177,7 @@ def recommend_seats(
 
     # Group all seats in showtimes by row letter
     seats_by_row = {}
-    for s in show["seats"].keys():
+    for s in seats_dict.keys():
         match = re.match(r"^([A-Z]+)(\d+)$", s)
         if match:
             r, num = match.groups()

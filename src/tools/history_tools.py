@@ -1,24 +1,14 @@
 from langchain.tools import tool
-from src.db.json_store import load_db
-from src.config.constants import DBFile, BookingStatus, Limits
+from src.config.constants import BookingStatus, Limits
 from src.utils.errors import handle_errors, ToolError
 from src.utils.logger import get_logger
 from src.schemas.booking import (
     GetBookingRequest,
     GetBookingsByStatusRequest
 )
+from src.api import services
 
 logger = get_logger(__name__)
-
-
-def _populate_booking_names(booking: dict) -> dict:
-    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
-    if not booking.get("movie_title") or booking.get("movie_title") == "Movie":
-        booking["movie_title"] = get_movie_title_by_id(booking.get("movie_id")) or "Movie"
-    if not booking.get("theater_name") or booking.get("theater_name") == "Theater":
-        booking["theater_name"] = get_theater_name_by_id(booking.get("theater_id")) or "Theater"
-    return booking
-
 
 def make_history_tools(user_id: str):
     """
@@ -36,12 +26,7 @@ def make_history_tools(user_id: str):
         Args:
             limit: max number of bookings to return (default 10)
         """
-        db = load_db(DBFile.BOOKINGS)
-
-        all_bookings = [
-            b for b in db["bookings"].values()
-            if b["user_id"] == user_id
-        ]
+        all_bookings = services.get_user_bookings(user_id)
 
         if not all_bookings:
             raise ToolError(
@@ -50,15 +35,7 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
-        # sort by booked_at descending — most recent first
-        sorted_bookings = sorted(
-            all_bookings,
-            key=lambda b: b["booked_at"],
-            reverse=True
-        )[:limit]
-
-        for b in sorted_bookings:
-            _populate_booking_names(b)
+        sorted_bookings = all_bookings[:limit]
 
         logger.info(f"found {len(sorted_bookings)} bookings for user {user_id}")
         return {
@@ -78,8 +55,7 @@ def make_history_tools(user_id: str):
         Args:
             booking_id: booking ID e.g. "b_001"
         """
-        db = load_db(DBFile.BOOKINGS)
-        booking = db["bookings"].get(booking_id)
+        booking = services.get_booking_by_id(booking_id)
 
         if not booking:
             raise ToolError(
@@ -88,7 +64,6 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
-        _populate_booking_names(booking)
         logger.info(f"booking {booking_id} fetched")
         return {"status": "success", "booking": booking}
 
@@ -99,12 +74,11 @@ def make_history_tools(user_id: str):
         Get the most recent confirmed booking for a user.
         Use when user says 'rebook my last booking' or 'same seats as last time'.
         """
-        db = load_db(DBFile.BOOKINGS)
+        all_bookings = services.get_user_bookings(user_id)
 
         confirmed = [
-            b for b in db["bookings"].values()
-            if b["user_id"] == user_id
-            and b["status"] == BookingStatus.CONFIRMED
+            b for b in all_bookings
+            if b["status"] == BookingStatus.CONFIRMED
         ]
 
         if not confirmed:
@@ -114,8 +88,8 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
-        last = max(confirmed, key=lambda b: b["booked_at"])
-        _populate_booking_names(last)
+        # first booking is the most recent because get_user_bookings is pre-sorted DESC by booked_at
+        last = confirmed[0]
 
         logger.info(f"last booking for user {user_id} is {last['booking_id']}")
         return {
@@ -140,12 +114,11 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
-        db = load_db(DBFile.BOOKINGS)
+        all_bookings = services.get_user_bookings(user_id)
 
         filtered = [
-            b for b in db["bookings"].values()
-            if b["user_id"] == user_id
-            and b["status"] == status
+            b for b in all_bookings
+            if b["status"] == status
         ]
 
         if not filtered:
@@ -155,14 +128,10 @@ def make_history_tools(user_id: str):
                 recoverable=True
             )
 
-        sorted_bookings = sorted(filtered, key=lambda b: b["booked_at"], reverse=True)
-        for b in sorted_bookings:
-            _populate_booking_names(b)
-
-        logger.info(f"found {len(sorted_bookings)} {status} bookings for user {user_id}")
+        logger.info(f"found {len(filtered)} {status} bookings for user {user_id}")
         return {
             "status":   "success",
-            "bookings": sorted_bookings
+            "bookings": filtered
         }
 
     return [

@@ -1,11 +1,10 @@
 from langgraph.types import interrupt
-from src.db.json_store import load_db, save_db
-from src.config.constants import DBFile, BookingStatus, SeatStatus
+from src.config.constants import BookingStatus
 from src.utils.date_utils import get_now
 from src.utils.logger import get_logger
+from src.api import services
 
 logger = get_logger(__name__)
-
 
 def cancel_confirm_node(state: dict) -> dict:
     cancel_draft = state.get("cancel_draft")
@@ -36,29 +35,19 @@ def cancel_confirm_node(state: dict) -> dict:
         msg = AIMessage(content="Your cancellation request was rejected. The booking remains active.")
         return {"cancel_draft": None, "confirmed": False, "messages": [msg]}
 
-    bookings_db  = load_db(DBFile.BOOKINGS)
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-
     booking_id = cancel_draft["booking_id"]
 
-    # update booking status
-    bookings_db["bookings"][booking_id] = {
-        **bookings_db["bookings"][booking_id],
-        "status":       BookingStatus.CANCELLED,
-        "cancelled_at": get_now(),
-        "refund_amount": cancel_draft["refund_amount"]
-    }
-    save_db(DBFile.BOOKINGS, bookings_db)
-
-    # flip seats back to available
-    tid, mid, sid = cancel_draft["theater_id"], cancel_draft["movie_id"], cancel_draft["show_id"]
-    shows      = showtimes_db["showtimes"][tid][mid]
-    show_index = next(i for i, s in enumerate(shows) if s["show_id"] == sid)
-
-    for seat in cancel_draft["seats"]:
-        showtimes_db["showtimes"][tid][mid][show_index]["seats"][seat] = SeatStatus.AVAILABLE
-
-    save_db(DBFile.SHOWTIMES, showtimes_db)
+    # Process cancel in Database
+    try:
+        cancelled_booking = services.cancel_booking(
+            booking_id=booking_id,
+            refund_amount=cancel_draft["refund_amount"],
+            reason=cancel_draft.get("reason") or "User requested cancellation"
+        )
+    except Exception as e:
+        logger.error(f"Failed to cancel booking {booking_id} in database: {e}", exc_info=True)
+        err_msg = AIMessage(content="❌ **Cancellation Failed**\n\nSorry, we could not cancel your booking at this moment. Please try again.")
+        return {"cancel_draft": None, "confirmed": False, "messages": [err_msg]}
 
     logger.info(f"booking {booking_id} cancelled — refund: {cancel_draft['refund_amount']}")
 

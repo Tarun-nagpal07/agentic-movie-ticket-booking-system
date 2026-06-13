@@ -1,7 +1,7 @@
 from src.utils.logger import get_logger
 from src.utils.errors import handle_errors, ToolError,BookingError
-from src.db.json_store import load_db, save_db
-from src.config.constants import DBFile,SeatStatus
+from src.config.constants import SeatStatus
+from src.api import services
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from src.utils.date_utils import get_today, get_now, is_show_in_future
@@ -20,11 +20,9 @@ def get_theater_by_city(city: str) -> dict:
     Args:
         city: city name — ahmedabad, mumbai, delhi, bangalore
     """
-    db = load_db(DBFile.THEATERS)
+    theaters = services.get_theaters_by_city(city)
 
-    theaters = db["theaters"].get(city.lower())
-
-    if theaters is None:
+    if not theaters:
         raise ToolError(
             message=f"No theaters found for city: {city}",
             code = "NO_THEATERS_FOUND",
@@ -48,14 +46,14 @@ import re
 
 def _resolve_movie_name_to_id(movie_name: str) -> str | None:
     """
-    Fuzzy-match a movie name against movies.json.
+    Fuzzy-match a movie name against movies database.
     Used internally by tools — not exposed as a separate tool call.
     Priority: exact → substring → fuzzy (difflib, cutoff=0.6)
     """
     if not movie_name:
         return None
-    db = load_db(DBFile.MOVIES)
-    titles = {m["title"]: m["movie_id"] for m in db.get("movies", [])}
+    movies = services.get_movies()
+    titles = {m["title"]: m["movie_id"] for m in movies}
 
     # 1. Exact match (case-insensitive)
     for title, mid in titles.items():
@@ -94,10 +92,9 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None, movie_name:
     date = date or get_today()
     from src.utils.id_cleaner import resolve_theater_id
     theater_ids = [resolve_theater_id(tid) for tid in theater_ids if tid]
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    movies_db = load_db(DBFile.MOVIES)
+    movies = services.get_movies()
 
-    movies_lookup = {m["movie_id"]: m for m in movies_db["movies"]}
+    movies_lookup = {m["movie_id"]: m for m in movies}
 
     resolved_mid = None
     if movie_name:
@@ -105,14 +102,17 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None, movie_name:
 
     result = {}
     for tid in theater_ids:
-        theater_shows = showtimes_db["showtimes"].get(tid, {})
+        shows = services.get_showtimes_by_theater_and_date(tid, date)
         movies_showing = []
+        seen_movie_ids = set()
 
-        for movie_id, shows in theater_shows.items():
+        for s in shows:
+            movie_id = s["movie_id"]
+            if movie_id in seen_movie_ids:
+                continue
             if resolved_mid and movie_id != resolved_mid:
                 continue
-            shows_on_date = [s for s in shows if s["date"] == date]
-            if shows_on_date and movie_id in movies_lookup:
+            if movie_id in movies_lookup:
                 m_info = movies_lookup[movie_id]
                 movies_showing.append({
                     "movie_id": m_info["movie_id"],
@@ -122,6 +122,7 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None, movie_name:
                     "duration_min": m_info.get("duration_min"),
                     "rating": m_info.get("rating")
                 })
+                seen_movie_ids.add(movie_id)
 
         result[tid] = movies_showing
 
@@ -149,7 +150,6 @@ def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str
         movie_name: optional fuzzy movie name (e.g. "patthan", "Pathaan")
     """
     date = date or get_today()
-    db = load_db(DBFile.SHOWTIMES)
 
     # Resolve movie_name or movie_id if it's not a standard movie ID format
     if movie_name:
@@ -164,46 +164,17 @@ def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str
 
     # 0. If movie_id is actually a show_id (e.g. starting with "s")
     if movie_id and movie_id.startswith("s"):
-        resolved_mid = None
-        resolved_tid = None
-        for tid, movie_shows in db["showtimes"].items():
-            for mid, shows in movie_shows.items():
-                for s in shows:
-                    if s["show_id"] == movie_id:
-                        resolved_mid = mid
-                        resolved_tid = tid
-                        break
-                if resolved_mid:
-                    break
-            if resolved_mid:
-                break
-        if resolved_mid:
-            logger.info(f"Resolved show_id '{movie_id}' as movie_id '{resolved_mid}' at theater '{resolved_tid}'")
-            movie_id = resolved_mid
-            theater_id = resolved_tid
+        show_details = services.get_show_details(movie_id)
+        if show_details:
+            movie_id = show_details["movie_id"]
+            theater_id = show_details["theater_id"]
 
     from src.utils.id_cleaner import resolve_theater_id, resolve_movie_id
     theater_id = resolve_theater_id(theater_id)
     movie_id = resolve_movie_id(movie_id)
 
-    theater_shows = db["showtimes"].get(theater_id)
-    if not theater_shows:
-        raise ToolError(
-            message=f"No showtimes found for theater '{theater_id}'.",
-            code="THEATER_NOT_FOUND",
-            recoverable=True
-        )
-
-    movie_shows = theater_shows.get(movie_id)
-    if not movie_shows:
-        raise ToolError(
-            message=f"Movie '{movie_id}' is not showing at theater '{theater_id}'.",
-            code="MOVIE_NOT_AT_THEATER",
-            recoverable=True
-        )
-
-    shows_on_date = [s for s in movie_shows if s["date"] == date]
-    if not shows_on_date:
+    shows = services.get_showtimes(theater_id, movie_id, date)
+    if not shows:
         raise ToolError(
             message=f"No shows for movie '{movie_id}' on {date} at theater '{theater_id}'.",
             code="NO_SHOWS_ON_DATE",
@@ -211,9 +182,10 @@ def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str
         )
 
     cleaned_shows = []
-    for show in shows_on_date:
+    for show in shows:
+        seats_dict = services.get_show_seats(show["show_id"])
         seats_available = sum(
-            1 for status in show["seats"].values()
+            1 for status in seats_dict.values()
             if status == SeatStatus.AVAILABLE
         )
         cleaned_shows.append({
@@ -261,20 +233,12 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
             recoverable=True
         )
 
-    showtimes_db = load_db(DBFile.SHOWTIMES)
-    bookings_db  = load_db(DBFile.BOOKINGS)
-
-    # find show
-    show = theater_id = movie_id = None
-    for tid, movies in showtimes_db["showtimes"].items():
-        for mid, shows in movies.items():
-            for s in shows:
-                if s["show_id"] == show_id:
-                    show, theater_id, movie_id = s, tid, mid
-                    break
-
+    show = services.get_show_details(show_id)
     if not show:
         raise BookingError(message=f"Show '{show_id}' not found.", code="SHOW_NOT_FOUND", recoverable=True)
+
+    theater_id = show["theater_id"]
+    movie_id = show["movie_id"]
 
     # Date range validation: bookable dates are today to today + 3 days (inclusive)
     from datetime import datetime, timedelta
@@ -292,12 +256,14 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
     if not is_show_in_future(show["date"], show["time"]):
         raise BookingError(message="Show has already started or passed.", code="SHOW_ALREADY_STARTED", recoverable=False)
 
-    unavailable = [s for s in seats if show["seats"].get(s) != SeatStatus.AVAILABLE]
+    seats_dict = services.get_show_seats(show_id)
+    unavailable = [s for s in seats if seats_dict.get(s) != SeatStatus.AVAILABLE]
     if unavailable:
         raise BookingError(message=f"Seats {unavailable} are not available.", code="SEATS_NOT_AVAILABLE", recoverable=True)
 
-    # build draft — do NOT write to JSON yet
-    booking_id  = f"b_{len(bookings_db['bookings']) + 1:03d}"
+    # build draft — do NOT write to JSON/DB yet
+    import uuid
+    booking_id  = f"b_{uuid.uuid4().hex[:6]}"
     total_price = show["price"] * num_tickets
 
     from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id

@@ -205,52 +205,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------- DB READ UTILITIES (Live Sidebar Updates) -----------------
-def load_bookings_db():
-    path = "data/bookings.json"
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f).get("bookings", {})
-        except Exception:
-            return {}
-    return {}
-
-def load_movies_db():
-    path = "data/movies.json"
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f).get("movies", [])
-        except Exception:
-            return []
-    return []
-
-def load_theaters_db():
-    path = "data/theaters.json"
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f).get("theaters", {})
-        except Exception:
-            return {}
-    return {}
-
-def get_movie_title(movie_id: str) -> str:
-    movies = load_movies_db()
-    for m in movies:
-        if m.get("movie_id") == movie_id:
-            return m.get("title", "Unknown Movie")
-    return "Unknown Movie"
-
-def get_theater_name(theater_id: str) -> str:
-    theaters = load_theaters_db()
-    for city, theater_list in theaters.items():
-        for t in theater_list:
-            if t.get("theater_id") == theater_id:
-                return t.get("name", "Unknown Theater")
-    return "Unknown Theater"
-
 # ----------------- SESSION MANAGEMENT -----------------
 import random
 
@@ -270,15 +224,90 @@ def generate_random_thread_name():
     num = random.randint(100, 999)
     return f"{adj}-{noun}-{num}"
 
-if "user_id" not in st.session_state:
-    st.session_state.user_id = "u1"
-
 if "processing" not in st.session_state:
     st.session_state.processing = False
 
 if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = None
 
+# If not authenticated, prompt user to Login or Sign Up
+if "token" not in st.session_state:
+    st.markdown('<div class="banner-title">🎬 Cinemagic Booking Portal</div>', unsafe_allow_html=True)
+    st.markdown('<div class="banner-subtitle">Your AI-powered cinema booking assistant. Please log in or register to continue.</div>', unsafe_allow_html=True)
+
+    tab_login, tab_signup = st.tabs(["🔑 Log In", "📝 Sign Up"])
+
+    with tab_login:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        login_email = st.text_input("Email", placeholder="e.g. raj.mehta@gmail.com", key="login_email")
+        login_password = st.text_input("Password", type="password", placeholder="Password", key="login_password")
+        if st.button("Log In", use_container_width=True, type="primary"):
+            if not login_email or not login_password:
+                st.error("Please enter both email and password.")
+            else:
+                try:
+                    res = requests.post(f"{API_BASE_URL}/api/auth/login", json={
+                        "email": login_email,
+                        "password": login_password
+                    })
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.session_state.token = data["token"]
+                        st.session_state.user_id = data["user_id"]
+                        st.session_state.user_name = data["name"]
+                        st.session_state.user_email = login_email
+                        st.success(f"Successfully logged in as {data['name']}!")
+                        st.rerun()
+                    else:
+                        try:
+                            err_detail = res.json().get("detail", "Invalid email or password.")
+                        except Exception:
+                            err_detail = res.text
+                        st.error(f"Login failed: {err_detail}")
+                except Exception as e:
+                    st.error(f"Failed to connect to backend: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with tab_signup:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        signup_name = st.text_input("Full Name", placeholder="e.g. Tarun Nagpal", key="signup_name")
+        signup_email = st.text_input("Email Address", placeholder="e.g. tarun@example.com", key="signup_email")
+        signup_password = st.text_input("Password (min 6 characters)", type="password", placeholder="Password", key="signup_password")
+        signup_city = st.selectbox("City", ["ahmedabad", "mumbai", "bangalore", "delhi"], key="signup_city")
+        signup_phone = st.text_input("Phone Number", placeholder="e.g. 9876543210", key="signup_phone")
+
+        if st.button("Create Account & Log In", use_container_width=True, type="primary"):
+            if not signup_name or not signup_email or not signup_password or not signup_city or not signup_phone:
+                st.error("Please fill in all fields.")
+            elif len(signup_password) < 6:
+                st.error("Password must be at least 6 characters.")
+            else:
+                try:
+                    res = requests.post(f"{API_BASE_URL}/api/auth/signup", json={
+                        "name": signup_name,
+                        "email": signup_email,
+                        "password": signup_password,
+                        "city": signup_city,
+                        "phone": signup_phone
+                    })
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.session_state.token = data["token"]
+                        st.session_state.user_id = data["user_id"]
+                        st.session_state.user_name = signup_name
+                        st.session_state.user_email = signup_email
+                        st.success(f"Welcome, {signup_name}! Account created and logged in.")
+                        st.rerun()
+                    else:
+                        try:
+                            err_detail = res.json().get("detail", "Signup failed.")
+                        except Exception:
+                            err_detail = res.text
+                        st.error(f"Signup failed: {err_detail}")
+                except Exception as e:
+                    st.error(f"Failed to connect to backend: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
 
 # Check if we have a pending user input from a previous redirection (to clear the active interrupt)
 user_input_from_state = None
@@ -286,23 +315,29 @@ if "pending_user_input" in st.session_state:
     user_input_from_state = st.session_state.pop("pending_user_input")
 
 # Helper to load user threads from backend
-def fetch_user_threads(user_id: str):
+def fetch_user_threads():
+    token = st.session_state.get("token")
+    if not token:
+        return []
     try:
         url = f"{API_BASE_URL}/chat/threads"
-        res = requests.get(url, params={"user_id": user_id})
+        res = requests.get(url, headers={"Authorization": f"Bearer {token}"})
         if res.status_code == 200:
-            threads = res.json().get("threads", [])
-            return threads
+            return res.json().get("threads", [])
     except Exception:
         pass
     return []
 
 # Sync logic: loads history from FastAPI server
 def fetch_chat_history():
+    token = st.session_state.get("token")
+    if not token:
+        return [], False, None
     try:
         url = f"{API_BASE_URL}/chat/history"
-        params = {"user_id": st.session_state.user_id, "thread_id": st.session_state.thread_id}
-        res = requests.get(url, params=params)
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"thread_id": st.session_state.thread_id}
+        res = requests.get(url, params=params, headers=headers)
         if res.status_code == 200:
             data = res.json()
             # Always get full history from backend (PostgreSQL), not the trimmed state
@@ -322,7 +357,7 @@ def fetch_chat_history():
 
 # Load threads dynamically for the active user if not initialized
 if "threads" not in st.session_state:
-    st.session_state.threads = fetch_user_threads(st.session_state.user_id)
+    st.session_state.threads = fetch_user_threads()
 
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = generate_random_thread_name()
@@ -350,19 +385,21 @@ else:
 with st.sidebar:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="glass-header">👤 User Settings</div>', unsafe_allow_html=True)
+    st.markdown(f"**Name:** {st.session_state.user_name}")
+    st.markdown(f"**Email:** {st.session_state.user_email}")
     
-    # User Switching
-    user_options = ["u1", "u2", "u3", "u4"]
-    current_user = st.selectbox("Select User ID", options=user_options, index=user_options.index(st.session_state.user_id) if st.session_state.user_id in user_options else 0)
-    if current_user != st.session_state.user_id:
-        st.session_state.user_id = current_user
-        # Retrieve threads for the newly switched user
-        st.session_state.threads = fetch_user_threads(current_user)
-        # Generate new random thread for clean chat by default on user switch
-        st.session_state.thread_id = generate_random_thread_name()
-        # Reset chat cache so fetch_chat_history gets triggered next run
-        st.session_state.last_user_id = None 
+    if st.button("🚪 Log Out", use_container_width=True):
+        try:
+            token = st.session_state.get("token")
+            if token:
+                requests.post(f"{API_BASE_URL}/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        except Exception:
+            pass
+        # Clear all state variables
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Session / Thread Switcher
     st.markdown('<div class="glass-header" style="margin-top: 1rem;">🧵 Chat Threads</div>', unsafe_allow_html=True)
@@ -374,7 +411,7 @@ with st.sidebar:
         st.session_state.renaming_active_unsaved = False
 
     # Update local threads cache
-    st.session_state.threads = fetch_user_threads(st.session_state.user_id)
+    st.session_state.threads = fetch_user_threads()
     db_threads = [t for t in st.session_state.threads if t]
 
     if st.session_state.renaming_active_unsaved:
@@ -428,11 +465,12 @@ with st.sidebar:
                             new_name_stripped = new_name.strip()
                             if new_name_stripped and new_name_stripped != t:
                                 try:
+                                    token = st.session_state.get("token")
+                                    headers = {"Authorization": f"Bearer {token}"} if token else {}
                                     res = requests.put(f"{API_BASE_URL}/chat/threads", params={
-                                        "user_id": st.session_state.user_id,
                                         "old_thread_id": t,
                                         "new_thread_id": new_name_stripped
-                                    })
+                                    }, headers=headers)
                                     if res.status_code == 200:
                                         # Update active thread ID if we renamed the active one
                                         if t == st.session_state.thread_id:
@@ -468,10 +506,11 @@ with st.sidebar:
                     with col_del:
                         if st.button("🗑️", key=f"thread_del_{t}", use_container_width=True):
                             try:
+                                token = st.session_state.get("token")
+                                headers = {"Authorization": f"Bearer {token}"} if token else {}
                                 res = requests.delete(f"{API_BASE_URL}/chat/threads", params={
-                                    "user_id": st.session_state.user_id,
                                     "thread_id": t
-                                })
+                                }, headers=headers)
                                 if res.status_code == 200:
                                     if t in st.session_state.threads:
                                         st.session_state.threads.remove(t)
@@ -565,11 +604,13 @@ if is_interrupted and interrupt_payload:
     with btn_col1:
         if st.button("✅ Approve", key="hitl_approve", use_container_width=True, type="primary"):
             try:
+                token = st.session_state.get("token")
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
                 res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
                     "user_id": st.session_state.user_id,
                     "thread_id": st.session_state.thread_id,
                     "decision": "Approve"
-                })
+                }, headers=headers)
                 if res.status_code == 200:
                     data = res.json()
                     st.session_state.chat_history = data.get("messages", [])
@@ -599,11 +640,13 @@ if is_interrupted and interrupt_payload:
     with btn_col2:
         if st.button("❌ Reject", key="hitl_reject", use_container_width=True):
             try:
+                token = st.session_state.get("token")
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
                 res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
                     "user_id": st.session_state.user_id,
                     "thread_id": st.session_state.thread_id,
                     "decision": "Reject"
-                })
+                }, headers=headers)
                 if res.status_code == 200:
                     data = res.json()
                     st.session_state.chat_history = data.get("messages", [])
@@ -707,7 +750,9 @@ if st.session_state.processing and st.session_state.current_prompt:
                 """, unsafe_allow_html=True)
                 
                 # Make a streaming POST request
-                res = requests.post(f"{API_BASE_URL}/chat/stream", json=payload, stream=True)
+                token = st.session_state.get("token")
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
+                res = requests.post(f"{API_BASE_URL}/chat/stream", json=payload, stream=True, headers=headers)
                 
                 if res.status_code == 200:
                     for line in res.iter_lines():
@@ -758,10 +803,13 @@ if st.session_state.processing and st.session_state.current_prompt:
                         if complete_payload.get("interrupt"):
                             logger.info(f"[HITL-DEBUG] interrupt_payload keys={list(complete_payload['interrupt'].keys())}")
                         
-                        # Force a re-fetch of history + interrupt state from the backend on the next rerun.
-                        # This guarantees the interrupt is picked up from the Redis checkpointer,
-                        # even if the SSE complete_payload was malformed or the session state was lost.
-                        st.session_state.last_thread_id = None
+                        # Populate state directly from complete_payload to avoid slow history downloading
+                        st.session_state.chat_history = complete_payload.get("messages", [])
+                        st.session_state.is_interrupted = complete_payload.get("status") == "requires_confirmation"
+                        st.session_state.interrupt_payload = complete_payload.get("interrupt")
+                        st.session_state.last_thread_id = st.session_state.thread_id
+                        st.session_state.last_user_id = st.session_state.user_id
+                        
                         st.session_state.processing = False
                         st.session_state.current_prompt = None
                         st.rerun()

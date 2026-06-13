@@ -1,6 +1,5 @@
 from langchain.tools import tool
-from src.db.json_store import load_db, save_db
-from src.config.constants import DBFile, BookingStatus, RefundPolicy
+from src.config.constants import BookingStatus, RefundPolicy
 from src.utils.errors import handle_errors, ToolError, BookingError
 from src.utils.date_utils import get_now, hours_until_show
 from src.utils.logger import get_logger
@@ -9,14 +8,14 @@ from src.schemas.booking import (
     RefundResponse,
     GetBookingRequest
 )
-from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+from src.api import services
+from src.db.postgres import get_db_cursor
 
 logger = get_logger(__name__)
 
-
-@tool("get_booking_by_id",args_schema=GetBookingRequest)
+@tool("get_booking_by_id", args_schema=GetBookingRequest)
 @handle_errors(error_class=ToolError)
-def get_booking_by_id(booking_id:str) -> dict:
+def get_booking_by_id(booking_id: str) -> dict:
     """
     Get booking details by booking ID.
     Use when user asks to cancel a booking or check booking status.
@@ -24,31 +23,24 @@ def get_booking_by_id(booking_id:str) -> dict:
     Args:
         booking_id: booking ID e.g. "b_001"
     """
-    db = load_db(DBFile.BOOKINGS)
-    booking = db['bookings'].get(booking_id)
+    booking = services.get_booking_by_id(booking_id)
 
     if not booking:
         raise ToolError(
             message=f"No booking found for booking_id: {booking_id}",
-            code ="BOOKING_NOT_FOUND",
+            code="BOOKING_NOT_FOUND",
             recoverable=True
         )
     
     if booking["status"] == BookingStatus.CANCELLED:
-       raise ToolError(
+        raise ToolError(
             message=f"Booking '{booking_id}' is already cancelled.",
             code="BOOKING_ALREADY_CANCELLED",
             recoverable=False
         )
 
-    if not booking.get("movie_title") or booking.get("movie_title") == "Movie":
-        booking["movie_title"] = get_movie_title_by_id(booking.get("movie_id")) or "Movie"
-    if not booking.get("theater_name") or booking.get("theater_name") == "Theater":
-        booking["theater_name"] = get_theater_name_by_id(booking.get("theater_id")) or "Theater"
-
     logger.info(f"booking {booking_id} fetched")
     return {"status": "success", "booking": booking}
-
 
 
 @tool("prepare_cancellation", args_schema=CancelRequest)
@@ -63,8 +55,7 @@ def prepare_cancellation(booking_id: str, reason: str = None) -> dict:
         booking_id: booking ID to cancel e.g. "b_001"
         reason: optional reason for cancellation
     """
-    db = load_db(DBFile.BOOKINGS)
-    booking = db["bookings"].get(booking_id)
+    booking = services.get_booking_by_id(booking_id)
 
     if not booking:
         raise BookingError(
@@ -106,9 +97,9 @@ def prepare_cancellation(booking_id: str, reason: str = None) -> dict:
         "booking_id":    booking_id,
         "user_id":       booking["user_id"],
         "movie_id":      booking["movie_id"],
-        "movie_title":   booking.get("movie_title") or get_movie_title_by_id(booking.get("movie_id")) or "Movie",
+        "movie_title":   booking.get("movie_title") or "Movie",
         "theater_id":    booking["theater_id"],
-        "theater_name":  booking.get("theater_name") or get_theater_name_by_id(booking.get("theater_id")) or "Theater",
+        "theater_name":  booking.get("theater_name") or "Theater",
         "show_id":       booking["show_id"],
         "show_date":     booking["show_date"],
         "show_time":     booking["show_time"],
@@ -135,8 +126,7 @@ def process_refund(booking_id: str, refund_amount: float) -> dict:
         booking_id: booking ID e.g. "b_001"
         refund_amount: amount to refund e.g. 810.0
     """
-    db = load_db(DBFile.BOOKINGS)
-    booking = db["bookings"].get(booking_id)
+    booking = services.get_booking_by_id(booking_id)
 
     if not booking:
         raise BookingError(
@@ -165,8 +155,8 @@ def process_refund(booking_id: str, refund_amount: float) -> dict:
     refund_id = f"r_{booking_id}"
 
     # update refund status in bookings
-    db["bookings"][booking_id]["refund_amount"] = refund_amount
-    save_db(DBFile.BOOKINGS, db)
+    with get_db_cursor() as cur:
+        cur.execute("UPDATE bookings SET refund_amount = %s WHERE booking_id = %s;", (refund_amount, booking_id))
 
     logger.info(f"refund {refund_id} processed — amount: {refund_amount}")
     return {
@@ -191,10 +181,10 @@ def make_cancellation_tools(user_id: str):
         Use when user says 'cancel my last booking', 'cancel that booking', or 'cancel my booking'
         and no specific booking ID is available in context.
         """
-        db = load_db(DBFile.BOOKINGS)
+        bookings = services.get_user_bookings(user_id)
         confirmed = [
-            b for b in db["bookings"].values()
-            if b["user_id"] == user_id and b["status"] == BookingStatus.CONFIRMED
+            b for b in bookings
+            if b["status"] == BookingStatus.CONFIRMED
         ]
         if not confirmed:
             raise ToolError(
@@ -202,12 +192,8 @@ def make_cancellation_tools(user_id: str):
                 code="NO_CONFIRMED_BOOKING",
                 recoverable=True
             )
-        last = max(confirmed, key=lambda b: b["booked_at"])
-        # Enrich names
-        if not last.get("movie_title") or last["movie_title"] == "Movie":
-            last["movie_title"] = get_movie_title_by_id(last.get("movie_id")) or "Movie"
-        if not last.get("theater_name") or last["theater_name"] == "Theater":
-            last["theater_name"] = get_theater_name_by_id(last.get("theater_id")) or "Theater"
+        # bookings are sorted DESC by booked_at in services
+        last = confirmed[0]
         
         logger.info(f"last booking for user {user_id} is {last['booking_id']}")
         return {"status": "success", "booking": last}
@@ -231,38 +217,25 @@ def make_cancellation_tools(user_id: str):
                 recoverable=True
             )
 
-        db = load_db(DBFile.BOOKINGS)
-        bookings = [
-            b for b in db["bookings"].values()
-            if b["user_id"] == user_id
-            and b["movie_id"] == movie_id
+        bookings = services.get_user_bookings(user_id)
+        matches = [
+            b for b in bookings
+            if b["movie_id"] == movie_id
             and b["status"] == BookingStatus.CONFIRMED
         ]
 
-        if not bookings:
+        if not matches:
             raise ToolError(
                 message=f"No confirmed bookings found for movie '{movie_name}'.",
                 code="NO_BOOKINGS_FOUND",
                 recoverable=True
             )
 
-        # Enrich names
-        for last in bookings:
-            if not last.get("movie_title") or last["movie_title"] == "Movie":
-                last["movie_title"] = get_movie_title_by_id(last.get("movie_id")) or "Movie"
-            if not last.get("theater_name") or last["theater_name"] == "Theater":
-                last["theater_name"] = get_theater_name_by_id(last.get("theater_id")) or "Theater"
-
-        # Sort by booked_at descending so the most recent is first
-        bookings.sort(key=lambda b: b["booked_at"], reverse=True)
-
-        logger.info(f"found {len(bookings)} bookings for movie {movie_name} (ID: {movie_id})")
+        logger.info(f"found {len(matches)} bookings for movie {movie_name} (ID: {movie_id})")
         return {
             "status": "success",
-            "booking": bookings[0],
-            "matches": bookings
+            "booking": matches[0],
+            "matches": matches
         }
 
     return [get_booking_by_id, prepare_cancellation, process_refund, get_last_booking, get_booking_by_movie]
-
-

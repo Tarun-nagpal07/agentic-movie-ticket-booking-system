@@ -1,6 +1,5 @@
 from langchain.tools import tool
-from src.db.json_store import load_db
-from src.config.constants import DBFile, Limits
+from src.config.constants import Limits
 from src.utils.errors import handle_errors, ToolError
 from src.utils.date_utils import get_today
 from src.utils.distance import nearest_theaters
@@ -9,9 +8,9 @@ from src.schemas.show import (
     RecommendMoviesRequest,
     RecommendTheatersRequest
 )
+from src.api import services
 
 logger = get_logger(__name__)
-
 
 def make_recommendation_tools(user_id: str, memory: dict):
     """
@@ -66,13 +65,8 @@ def make_recommendation_tools(user_id: str, memory: dict):
             language: preferred language e.g. "Hindi" — optional
             limit: max recommendations to return, default 5
         """
-        date         = get_today()
-        theaters_db  = load_db(DBFile.THEATERS)
-        showtimes_db = load_db(DBFile.SHOWTIMES)
-        movies_db    = load_db(DBFile.MOVIES)
-
-        # get all theater IDs in city
-        city_theaters = theaters_db["theaters"].get(city.lower(), [])
+        date = get_today()
+        city_theaters = services.get_theaters_by_city(city)
         if not city_theaters:
             raise ToolError(
                 message=f"No theaters found in '{city}'.",
@@ -85,9 +79,9 @@ def make_recommendation_tools(user_id: str, memory: dict):
         # find all movies showing today in this city
         showing_movie_ids = set()
         for tid in theater_ids:
-            for movie_id, shows in showtimes_db["showtimes"].get(tid, {}).items():
-                if any(s["date"] == date for s in shows):
-                    showing_movie_ids.add(movie_id)
+            shows = services.get_showtimes_by_theater_and_date(tid, date)
+            for s in shows:
+                showing_movie_ids.add(s["movie_id"])
 
         if not showing_movie_ids:
             raise ToolError(
@@ -96,8 +90,8 @@ def make_recommendation_tools(user_id: str, memory: dict):
                 recoverable=True
             )
 
-        # score each showing movie against preferences
-        movies_lookup = {m["movie_id"]: m for m in movies_db["movies"]}
+        movies = services.get_movies()
+        movies_lookup = {m["movie_id"]: m for m in movies}
         scored = []
 
         for movie_id in showing_movie_ids:
@@ -155,16 +149,12 @@ def make_recommendation_tools(user_id: str, memory: dict):
             movie_id: movie ID from recommend_movies result e.g. "m1"
             city: user's city e.g. "ahmedabad"
         """
-        date         = get_today()
-        theaters_db  = load_db(DBFile.THEATERS)
-        showtimes_db = load_db(DBFile.SHOWTIMES)
-
-        # get user location and preferred theaters from closed-over memory
-        user_lat           = memory.get("latitude")
-        user_lon           = memory.get("longitude")
+        date = get_today()
+        user_lat = memory.get("latitude")
+        user_lon = memory.get("longitude")
         preferred_theaters = memory.get("preferred_theaters", [])
 
-        city_theaters = theaters_db["theaters"].get(city.lower(), [])
+        city_theaters = services.get_theaters_by_city(city)
         if not city_theaters:
             raise ToolError(
                 message=f"No theaters found in '{city}'.",
@@ -175,9 +165,9 @@ def make_recommendation_tools(user_id: str, memory: dict):
         # filter only theaters showing this movie today
         showing_theaters = []
         for theater in city_theaters:
-            tid   = theater["theater_id"]
-            shows = showtimes_db["showtimes"].get(tid, {}).get(movie_id, [])
-            if any(s["date"] == date for s in shows):
+            tid = theater["theater_id"]
+            shows = services.get_showtimes(tid, movie_id, date)
+            if shows:
                 showing_theaters.append(theater)
 
         if not showing_theaters:
@@ -212,7 +202,7 @@ def make_recommendation_tools(user_id: str, memory: dict):
         Finds genres and movies the user has watched before and suggests similar ones.
         Use when user asks 'suggest something like before' or 'based on my taste'.
         """
-        city            = memory.get("city")
+        city = memory.get("city")
         booking_history = memory.get("booking_history", [])
 
         if not booking_history:
@@ -222,15 +212,12 @@ def make_recommendation_tools(user_id: str, memory: dict):
                 recoverable=True
             )
 
-        date         = get_today()
-        movies_db    = load_db(DBFile.MOVIES)
-        theaters_db  = load_db(DBFile.THEATERS)
-        showtimes_db = load_db(DBFile.SHOWTIMES)
-
-        movies_lookup = {m["movie_id"]: m for m in movies_db["movies"]}
+        date = get_today()
+        movies = services.get_movies()
+        movies_lookup = {m["movie_id"]: m for m in movies}
 
         # extract genres from watched movies
-        watched_ids = {b["movie_id"] for b in booking_history}
+        watched_ids = {b["movie_id"] for b in booking_history if b.get("movie_id")}
         watched_genres = set()
         for mid in watched_ids:
             movie = movies_lookup.get(mid)
@@ -238,16 +225,14 @@ def make_recommendation_tools(user_id: str, memory: dict):
                 watched_genres.update(movie["genre"])
 
         # find movies showing today in city — exclude already watched
-        theater_ids = [
-            t["theater_id"]
-            for t in theaters_db["theaters"].get(city.lower(), [])
-        ]
+        theaters = services.get_theaters_by_city(city)
+        theater_ids = [t["theater_id"] for t in theaters]
 
         showing_ids = set()
         for tid in theater_ids:
-            for movie_id, shows in showtimes_db["showtimes"].get(tid, {}).items():
-                if any(s["date"] == date for s in shows):
-                    showing_ids.add(movie_id)
+            shows = services.get_showtimes_by_theater_and_date(tid, date)
+            for s in shows:
+                showing_ids.add(s["movie_id"])
 
         # score unwatched movies against watched genres
         scored = []

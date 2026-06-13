@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: str = Field(default="")
     LANGFUSE_PUBLIC_KEY: str = Field(default="")
     LANGFUSE_BASE_URL: str = Field(default="https://cloud.langfuse.com")
+    JWT_SECRET_KEY: str = Field(default="super-secret-key-change-in-production")
+    SESSION_EXPIRE_MINUTES: int = Field(default=60)
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

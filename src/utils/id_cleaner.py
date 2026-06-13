@@ -1,7 +1,7 @@
 import re
+from src.db.postgres import get_db_cursor
 
 # Centralized ID format configurations.
-# Change these regex patterns if you update the database ID format.
 THEATER_ID_PATTERN = r"t\d+"
 MOVIE_ID_PATTERN = r"m\d+"
 SHOW_ID_PATTERN = r"s\d+"
@@ -9,6 +9,60 @@ BOOKING_ID_PATTERN = r"b_?\d+"
 
 # Combined pattern to match any raw database ID (theater, movie, show, booking)
 ANY_ID_PATTERN = rf"(?:{THEATER_ID_PATTERN}|{MOVIE_ID_PATTERN}|{SHOW_ID_PATTERN}|{BOOKING_ID_PATTERN})"
+
+# In-memory static caches for lookups to optimize response time
+_movies_cache = None
+_theaters_cache = None
+_showtimes_cache = None
+
+def _load_movies_to_cache():
+    global _movies_cache
+    if _movies_cache is not None:
+        return _movies_cache
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT movie_id, title FROM movies;")
+            rows = cur.fetchall()
+            _movies_cache = [{"movie_id": r[0], "title": r[1]} for r in rows]
+    except Exception:
+        _movies_cache = []
+    return _movies_cache
+
+def _load_theaters_to_cache():
+    global _theaters_cache
+    if _theaters_cache is not None:
+        return _theaters_cache
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT theater_id, name, city FROM theaters;")
+            rows = cur.fetchall()
+            _theaters_cache = [{"theater_id": r[0], "name": r[1], "city": r[2]} for r in rows]
+    except Exception:
+        _theaters_cache = []
+    return _theaters_cache
+
+def _load_showtimes_to_cache():
+    global _showtimes_cache
+    if _showtimes_cache is not None:
+        return _showtimes_cache
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT show_id, movie_id, theater_id, show_date, show_time FROM showtimes;")
+            rows = cur.fetchall()
+            _showtimes_cache = []
+            for r in rows:
+                show_date_str = r[3].strftime("%Y-%m-%d") if hasattr(r[3], "strftime") else str(r[3])
+                show_time_str = r[4].strftime("%H:%M") if hasattr(r[4], "strftime") else str(r[4])[:5]
+                _showtimes_cache.append({
+                    "show_id": r[0],
+                    "movie_id": r[1],
+                    "theater_id": r[2],
+                    "date": show_date_str,
+                    "time": show_time_str
+                })
+    except Exception:
+        _showtimes_cache = []
+    return _showtimes_cache
 
 
 def remove_raw_ids(text: str) -> str:
@@ -45,17 +99,10 @@ def resolve_theater_id(theater_name_or_id: str | None) -> str | None:
     if re.match(rf"^{THEATER_ID_PATTERN}$", theater_name_or_id.strip()):
         return theater_name_or_id.strip()
         
-    # Otherwise, search by name
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
-    try:
-        db = load_db(DBFile.THEATERS)
-        for city, theaters in db.get("theaters", {}).items():
-            for t in theaters:
-                if t["name"].lower() == theater_name_or_id.lower() or theater_name_or_id.lower() in t["name"].lower():
-                    return t["theater_id"]
-    except Exception:
-        pass
+    theaters = _load_theaters_to_cache()
+    for t in theaters:
+        if t["name"].lower() == theater_name_or_id.lower() or theater_name_or_id.lower() in t["name"].lower():
+            return t["theater_id"]
     return theater_name_or_id
 
 
@@ -66,46 +113,30 @@ def resolve_movie_id(movie_name_or_id: str | None) -> str | None:
     if re.match(rf"^{MOVIE_ID_PATTERN}$", movie_name_or_id.strip()):
         return movie_name_or_id.strip()
         
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
-    try:
-        db = load_db(DBFile.MOVIES)
-        for m in db.get("movies", []):
-            if m["title"].lower() == movie_name_or_id.lower() or movie_name_or_id.lower() in m["title"].lower():
-                return m["movie_id"]
-    except Exception:
-        pass
+    movies = _load_movies_to_cache()
+    for m in movies:
+        if m["title"].lower() == movie_name_or_id.lower() or movie_name_or_id.lower() in m["title"].lower():
+            return m["movie_id"]
     return movie_name_or_id
 
 
 def get_theater_name_by_id(theater_id: str | None) -> str | None:
     if not theater_id:
         return None
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
-    try:
-        db = load_db(DBFile.THEATERS)
-        for city, theaters in db.get("theaters", {}).items():
-            for t in theaters:
-                if t["theater_id"] == theater_id:
-                    return t["name"]
-    except Exception:
-        pass
+    theaters = _load_theaters_to_cache()
+    for t in theaters:
+        if t["theater_id"] == theater_id:
+            return t["name"]
     return None
 
 
 def get_movie_title_by_id(movie_id: str | None) -> str | None:
     if not movie_id:
         return None
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
-    try:
-        db = load_db(DBFile.MOVIES)
-        for m in db.get("movies", []):
-            if m["movie_id"] == movie_id:
-                return m["title"]
-    except Exception:
-        pass
+    movies = _load_movies_to_cache()
+    for m in movies:
+        if m["movie_id"] == movie_id:
+            return m["title"]
     return None
 
 
@@ -158,23 +189,20 @@ def extract_ids_from_tool_calls(messages: list) -> dict:
                 sid = args.get("show_id")
                 if sid:
                     updates["show_id"] = sid
-                    from src.db.json_store import load_db
-                    from src.config.constants import DBFile
                     try:
-                        showtimes_db = load_db(DBFile.SHOWTIMES)
-                        for tid, movie_shows in showtimes_db.get("showtimes", {}).items():
-                            for mid, shows in movie_shows.items():
-                                for s in shows:
-                                    if s["show_id"] == sid:
-                                        updates["theater_id"] = tid
-                                        t_name = get_theater_name_by_id(tid)
-                                        if t_name:
-                                            updates["theater_name"] = t_name
-                                        updates["movie_id"] = mid
-                                        m_title = get_movie_title_by_id(mid)
-                                        if m_title:
-                                            updates["movie_title"] = m_title
-                                        break
+                        showtimes = _load_showtimes_to_cache()
+                        for s in showtimes:
+                            if s["show_id"] == sid:
+                                tid = s["theater_id"]
+                                updates["theater_id"] = tid
+                                t_name = get_theater_name_by_id(tid)
+                                if t_name:
+                                    updates["theater_name"] = t_name
+                                updates["movie_id"] = s["movie_id"]
+                                m_title = get_movie_title_by_id(s["movie_id"])
+                                if m_title:
+                                    updates["movie_title"] = m_title
+                                break
                     except Exception:
                         pass
                         
@@ -210,28 +238,23 @@ def extract_entities_from_text(text: str) -> dict:
     if not text:
         return {}
     updates = {}
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
     
     # 1. Scan for theater names (exact or substring)
     try:
-        theaters_db = load_db(DBFile.THEATERS)
-        for city, theaters in theaters_db.get("theaters", {}).items():
-            for t in theaters:
-                name = t["name"]
-                if name.lower() in text.lower():
-                    updates["theater_id"] = t["theater_id"]
-                    updates["theater_name"] = name
-                    break
-            if "theater_id" in updates:
+        theaters = _load_theaters_to_cache()
+        for t in theaters:
+            name = t["name"]
+            if name.lower() in text.lower():
+                updates["theater_id"] = t["theater_id"]
+                updates["theater_name"] = name
                 break
     except Exception:
         pass
 
     # 2. Scan for movie titles
     try:
-        movies_db = load_db(DBFile.MOVIES)
-        for m in movies_db.get("movies", []):
+        movies = _load_movies_to_cache()
+        for m in movies:
             title = m["title"]
             if title.lower() in text.lower():
                 updates["movie_id"] = m["movie_id"]
@@ -252,30 +275,24 @@ def resolve_implicit_theater(city: str | None, movie_id: str | None, date: str |
     if not city or not movie_id:
         return {}
     
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
     from src.utils.date_utils import get_today
-    
     date = date or get_today()
     
     try:
-        # 1. Get all theater IDs in this city
-        theaters_db = load_db(DBFile.THEATERS)
-        city_theaters = theaters_db.get("theaters", {}).get(city.lower(), [])
+        # 1. Get all theaters in this city
+        theaters = _load_theaters_to_cache()
+        city_theaters = [t for t in theaters if t["city"].lower() == city.lower()]
         city_tids = {t["theater_id"]: t["name"] for t in city_theaters}
         
         if not city_tids:
             return {}
             
         # 2. Check showtimes to find which of these theaters show the movie on the selected date
-        showtimes_db = load_db(DBFile.SHOWTIMES)
+        showtimes = _load_showtimes_to_cache()
         matching_tids = []
         
         for tid in city_tids:
-            theater_shows = showtimes_db.get("showtimes", {}).get(tid, {})
-            shows = theater_shows.get(movie_id, [])
-            # check if there is any show on the selected date
-            shows_on_date = [s for s in shows if s["date"] == date]
+            shows_on_date = [s for s in showtimes if s["theater_id"] == tid and s["movie_id"] == movie_id and s["date"] == date]
             if shows_on_date:
                 matching_tids.append(tid)
                 
@@ -301,17 +318,12 @@ def resolve_implicit_show(theater_id: str | None, movie_id: str | None, date: st
     if not theater_id or not movie_id:
         return None
         
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
     from src.utils.date_utils import get_today
-    
     date = date or get_today()
     
     try:
-        showtimes_db = load_db(DBFile.SHOWTIMES)
-        theater_shows = showtimes_db.get("showtimes", {}).get(theater_id, {})
-        shows = theater_shows.get(movie_id, [])
-        shows_on_date = [s for s in shows if s["date"] == date]
+        showtimes = _load_showtimes_to_cache()
+        shows_on_date = [s for s in showtimes if s["theater_id"] == theater_id and s["movie_id"] == movie_id and s["date"] == date]
         
         if not shows_on_date:
             return None
@@ -353,16 +365,13 @@ def validate_and_clear_theater_id(city: str | None, theater_id: str | None) -> t
     """
     if not theater_id:
         return None, None
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
     try:
-        db = load_db(DBFile.THEATERS)
-        for t_city, theaters in db.get("theaters", {}).items():
-            for t in theaters:
-                if t["theater_id"] == theater_id:
-                    if city and t_city.lower() != city.lower():
-                        return None, None
-                    return theater_id, t["name"]
+        theaters = _load_theaters_to_cache()
+        for t in theaters:
+            if t["theater_id"] == theater_id:
+                if city and t["city"].lower() != city.lower():
+                    return None, None
+                return theater_id, t["name"]
     except Exception:
         pass
     return theater_id, None
@@ -377,20 +386,12 @@ def validate_and_clear_show_id(theater_id: str | None, movie_id: str | None, dat
         return None
     if not theater_id or not movie_id or not date:
         return None
-    from src.db.json_store import load_db
-    from src.config.constants import DBFile
     try:
-        db = load_db(DBFile.SHOWTIMES)
+        showtimes = _load_showtimes_to_cache()
         show = None
-        for tid, movies in db.get("showtimes", {}).items():
-            for mid, shows in movies.items():
-                for s in shows:
-                    if s["show_id"] == show_id:
-                        show = s
-                        break
-                if show:
-                    break
-            if show:
+        for s in showtimes:
+            if s["show_id"] == show_id:
+                show = s
                 break
         if show:
             if (movie_id and show["movie_id"] != movie_id) or \
@@ -401,6 +402,3 @@ def validate_and_clear_show_id(theater_id: str | None, movie_id: str | None, dat
     except Exception:
         pass
     return show_id
-
-
-

@@ -219,13 +219,15 @@ def planner_node(state: BookingState) -> BookingState:
                 user_message_content = getattr(m, "content", "")
                 break
 
-        refusal_prompt = f"""You are a helpful and polite movie ticket booking assistant.
+        refusal_prompt = f"""You are a helpful, witty, and charismatic GenZ movie ticket booking assistant.
             The user asked: "{user_message_content}"
-            This request is off-topic or irrelevant to movie booking, showtimes, seats, ticket cancellations, or movie-theater policies.
-            Politely inform the user that you can assist with movie ticket booking related questions, and gently steer them back.
-            Directly reference what they asked in a natural way so they know you understood their input, but explain why you cannot help with it.
-            Keep your response friendly, concise, and helpful.
-            You can be GenZ, and handle the situation.
+            This request is completely off-topic or irrelevant to movie bookings, showtimes, seats, ticket cancellations, or cinema policies.
+            
+            Deliver a playful, friendly GenZ refusal response:
+            1. Directly reference what they asked in a natural, slightly humorous way so they know you got it, but explain that it's out of your jurisdiction.
+            2. Use relatable GenZ tone and light slang (e.g., 'bestie', 'lowkey', 'no cap', 'valid', 'side-eye', 'cooked', 'staying in my lane') while remaining polite and helpful.
+            3. Smoothly steer them back to movies, showtimes, seats, or ticket bookings.
+            4. Keep it concise, friendly, and high on vibes. Avoid boring corporate robot energy.
             """
         refusal_response = llm.invoke([
             {"role": "system", "content": refusal_prompt}

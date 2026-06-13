@@ -21,4 +21,7 @@ dependencies = [
     "groq>=1.4.0",
     "langchain-groq",
     "streamlit",
+    "pyjwt",
+    "email-validator",
+    "bcrypt",
 ]
