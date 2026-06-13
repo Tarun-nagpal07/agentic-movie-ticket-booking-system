@@ -1,11 +1,15 @@
 import json
 import uuid
 from datetime import datetime, date, time
+from functools import lru_cache
 from src.db.postgres import get_db_cursor
 from src.config.constants import SeatStatus, BookingStatus
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Seats in-memory cache to avoid database hit on unchanged seat statuses
+_seats_cache = {}
 
 # --- Helper Converters ---
 
@@ -145,16 +149,19 @@ def booking_row_to_dict(row):
 
 # --- Movie Services ---
 
+@lru_cache(maxsize=1)
 def get_movies() -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("SELECT movie_id, title, genre, language, duration_min, rating, cast_members, description FROM movies;")
         return [movie_row_to_dict(r) for r in cur.fetchall()]
 
+@lru_cache(maxsize=128)
 def get_movie_by_id(movie_id: str) -> dict | None:
     with get_db_cursor() as cur:
         cur.execute("SELECT movie_id, title, genre, language, duration_min, rating, cast_members, description FROM movies WHERE movie_id = %s;", (movie_id,))
         return movie_row_to_dict(cur.fetchone())
 
+@lru_cache(maxsize=128)
 def search_movies(query: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("""
@@ -166,11 +173,13 @@ def search_movies(query: str) -> list[dict]:
 
 # --- Theater Services ---
 
+@lru_cache(maxsize=32)
 def get_theaters_by_city(city: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("SELECT theater_id, name, city, address, latitude, longitude, amenities, parking FROM theaters WHERE LOWER(city) = %s;", (city.lower(),))
         return [theater_row_to_dict(r) for r in cur.fetchall()]
 
+@lru_cache(maxsize=64)
 def get_theater_by_id(theater_id: str) -> dict | None:
     with get_db_cursor() as cur:
         cur.execute("SELECT theater_id, name, city, address, latitude, longitude, amenities, parking FROM theaters WHERE theater_id = %s;", (theater_id,))
@@ -179,6 +188,7 @@ def get_theater_by_id(theater_id: str) -> dict | None:
             theater["screens"] = get_screens_by_theater(theater_id)
         return theater
 
+@lru_cache(maxsize=64)
 def get_screens_by_theater(theater_id: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("SELECT screen_no, name, format, capacity FROM screens WHERE theater_id = %s;", (theater_id,))
@@ -191,6 +201,7 @@ def get_screens_by_theater(theater_id: str) -> list[dict]:
 
 # --- Showtime Services ---
 
+@lru_cache(maxsize=256)
 def get_showtimes(theater_id: str, movie_id: str, show_date: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("""
@@ -201,6 +212,7 @@ def get_showtimes(theater_id: str, movie_id: str, show_date: str) -> list[dict]:
         """, (theater_id, movie_id, show_date))
         return [showtime_row_to_dict(r) for r in cur.fetchall()]
 
+@lru_cache(maxsize=128)
 def get_showtimes_by_theater_and_date(theater_id: str, show_date: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("""
@@ -211,6 +223,7 @@ def get_showtimes_by_theater_and_date(theater_id: str, show_date: str) -> list[d
         """, (theater_id, show_date))
         return [showtime_row_to_dict(r) for r in cur.fetchall()]
 
+@lru_cache(maxsize=256)
 def get_show_details(show_id: str) -> dict | None:
     with get_db_cursor() as cur:
         cur.execute("""
@@ -223,9 +236,13 @@ def get_show_details(show_id: str) -> dict | None:
 # --- Seat Services ---
 
 def get_show_seats(show_id: str) -> dict:
+    if show_id in _seats_cache:
+        return _seats_cache[show_id]
     with get_db_cursor() as cur:
         cur.execute("SELECT seat_label, status FROM seats WHERE show_id = %s ORDER BY seat_label;", (show_id,))
-        return {r[0]: r[1] for r in cur.fetchall()}
+        seats = {r[0]: r[1] for r in cur.fetchall()}
+        _seats_cache[show_id] = seats
+        return seats
 
 # --- User Services ---
 
@@ -379,6 +396,7 @@ def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str
             """, (booking_id, seat, seat_type))
             
     # fetch the newly created booking dict and return
+    _seats_cache.pop(show_id, None)
     return get_booking_by_id(booking_id)
 
 def cancel_booking(booking_id: str, refund_amount: float, reason: str) -> dict | None:
@@ -416,6 +434,7 @@ def cancel_booking(booking_id: str, refund_amount: float, reason: str) -> dict |
                 WHERE booking_id = %s;
             """, (BookingStatus.CANCELLED, refund_amount, reason, booking_id))
             
+    _seats_cache.pop(show_id, None)
     return get_booking_by_id(booking_id)
 
 def get_booking_by_id(booking_id: str) -> dict | None:
@@ -448,6 +467,7 @@ def get_user_bookings(user_id: str) -> list[dict]:
 
 # --- Policy Services ---
 
+@lru_cache(maxsize=32)
 def get_policies_by_topic(topic: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("SELECT chunk_id, topic, content FROM policies WHERE topic = %s;", (topic,))

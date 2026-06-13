@@ -59,12 +59,16 @@ def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:
 
         updates["preferred_theaters"] = [draft["theater_id"]]
 
-        # infer seat type from booked seats using seat_types map
-        if draft.get("seats") and draft.get("seat_types"):
-            row       = draft["seats"][0][0]      # e.g. "E" from "E5"
-            seat_type = draft["seat_types"].get(row)
-            if seat_type:
-                updates["preferred_seat_type"] = seat_type
+        # Get seat type directly from confirmed booking details
+        if draft.get("seat_type"):
+            updates["preferred_seat_type"] = draft["seat_type"]
+
+        # infer movie genres from movie details
+        if draft.get("movie_id"):
+            from src.api.services import get_movie_by_id
+            movie = get_movie_by_id(draft["movie_id"])
+            if movie and movie.get("genre"):
+                updates["favorite_genres"] = movie["genre"]
 
         # infer format preference
         if draft.get("format"):
