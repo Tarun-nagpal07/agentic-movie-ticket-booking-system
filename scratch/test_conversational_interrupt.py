@@ -12,31 +12,45 @@ from main import get_active_interrupt
 
 def test_booking_confirmation():
     print("\n====================================================")
-    print("TEST A: BOOKING CONFIRMATION FLOW")
+    print("TEST A: BOOKING CONFIRMATION FLOW (MULTI-TURN)")
     print("====================================================")
     thread_id = f"test_confirm_{uuid.uuid4().hex[:8]}"
     config = {"configurable": {"thread_id": thread_id, "user_id": "u1"}}
     graph = get_graph()
     
-    # 1. Start booking flow (user request)
-    print("\n--- Step 1: Request booking ---")
+    # 1. Start booking flow (request recommendation)
+    print("\n--- Step 1: Request recommendation ---")
     inputs = {
-        "messages": [HumanMessage(content="heyy, book 2 tickets of pathan in 12 pm show")],
+        "messages": [HumanMessage(content="heyy, book 2 tickets of pathan in 12 pm show, recommend the best seats")],
         "user_id": "u1",
         "thread_id": thread_id
     }
     res = graph.invoke(inputs, config)
-    print("Agent output content:", [m.content for m in res["messages"] if m.type == "ai"][-1])
+    print("Agent output content:\n", [m.content for m in res["messages"] if m.type == "ai"][-1])
     
     snapshot = graph.get_state(config)
     print("Snapshot next after Step 1:", snapshot.next)
+    assert snapshot.next == (), "Graph should complete Turn 1 after recommendation"
+    
+    # 2. User confirms seats by saying "yes, book them" -> triggers book_tickets
+    print("\n--- Step 2: Confirm recommended seats ---")
+    inputs = {
+        "messages": [HumanMessage(content="yes, book them")],
+        "user_id": "u1",
+        "thread_id": thread_id
+    }
+    res = graph.invoke(inputs, config)
+    print("Agent output content:\n", [m.content for m in res["messages"] if m.type == "ai"][-1])
+    
+    snapshot = graph.get_state(config)
+    print("Snapshot next after Step 2:", snapshot.next)
     
     interrupt_info = get_active_interrupt(snapshot)
-    print("Is active interrupt after Step 1:", interrupt_info is not None)
+    print("Is active interrupt after Step 2:", interrupt_info is not None)
     assert interrupt_info is not None, "Should have paused on confirm_node interrupt"
     
-    # 2. User confirms by saying "yess"
-    print("\n--- Step 2: Say yess ---")
+    # 3. User approves booking by saying "yess"
+    print("\n--- Step 3: Say yess ---")
     inputs = {
         "messages": [HumanMessage(content="yess")],
         "user_id": "u1",
@@ -48,11 +62,11 @@ def test_booking_confirmation():
     res = graph.invoke(Command(resume="yess", update=inputs), config)
     
     snapshot = graph.get_state(config)
-    print("Snapshot next after Step 2:", snapshot.next)
+    print("Snapshot next after Step 3:", snapshot.next)
     
     # Verify booking is successful and graph completed
     last_msg = [m.content for m in res["messages"] if m.type == "ai"][-1]
-    print("Final Agent Response:", last_msg)
+    print("Final Agent Response:\n", last_msg)
     assert "booking has been confirmed" in last_msg.lower() or "successful" in last_msg.lower(), "Booking should be confirmed"
     assert snapshot.next == (), f"Expected graph to complete, got {snapshot.next}"
     assert res.get("booking_draft") is not None, "Booking draft should still be present in state"
@@ -62,29 +76,45 @@ def test_booking_confirmation():
 
 def test_booking_interruption():
     print("\n====================================================")
-    print("TEST B: BOOKING INTERRUPTION FLOW")
+    print("TEST B: BOOKING INTERRUPTION FLOW (MULTI-TURN)")
     print("====================================================")
     thread_id = f"test_interrupt_{uuid.uuid4().hex[:8]}"
     config = {"configurable": {"thread_id": thread_id, "user_id": "u1"}}
     graph = get_graph()
     
-    # 1. Start booking flow (user request)
-    print("\n--- Step 1: Request booking ---")
+    # 1. Start booking flow (request recommendation)
+    print("\n--- Step 1: Request recommendation ---")
     inputs = {
-        "messages": [HumanMessage(content="heyy, book 2 tickets of pathan in 12 pm show")],
+        "messages": [HumanMessage(content="heyy, book 2 tickets of pathan in 12 pm show, recommend the best seats")],
         "user_id": "u1",
         "thread_id": thread_id
     }
     res = graph.invoke(inputs, config)
-    print("Agent output content:", [m.content for m in res["messages"] if m.type == "ai"][-1])
+    print("Agent output content:\n", [m.content for m in res["messages"] if m.type == "ai"][-1])
     
     snapshot = graph.get_state(config)
+    print("Snapshot next after Step 1:", snapshot.next)
+    assert snapshot.next == (), "Graph should complete Turn 1 after recommendation"
+    
+    # 2. User confirms seats by saying "yes, book them" -> triggers book_tickets
+    print("\n--- Step 2: Confirm recommended seats ---")
+    inputs = {
+        "messages": [HumanMessage(content="yes, book them")],
+        "user_id": "u1",
+        "thread_id": thread_id
+    }
+    res = graph.invoke(inputs, config)
+    print("Agent output content:\n", [m.content for m in res["messages"] if m.type == "ai"][-1])
+    
+    snapshot = graph.get_state(config)
+    print("Snapshot next after Step 2:", snapshot.next)
+    
     interrupt_info = get_active_interrupt(snapshot)
-    print("Is active interrupt after Step 1:", interrupt_info is not None)
+    print("Is active interrupt after Step 2:", interrupt_info is not None)
     assert interrupt_info is not None, "Should have paused on confirm_node interrupt"
     
-    # 2. User interrupts with a policy question
-    print("\n--- Step 2: Interrupt with policy question ---")
+    # 3. User interrupts with a policy question
+    print("\n--- Step 3: Interrupt with policy question ---")
     query_msg = "what is the refund policy?"
     inputs = {
         "messages": [HumanMessage(content=query_msg)],
@@ -97,7 +127,7 @@ def test_booking_interruption():
     res = graph.invoke(Command(resume=query_msg, update=inputs), config)
     
     snapshot = graph.get_state(config)
-    print("Snapshot next after Step 2:", snapshot.next)
+    print("Snapshot next after Step 3:", snapshot.next)
     
     # Verify we got a policy answer and booking draft was cleared
     last_msg = [m.content for m in res["messages"] if m.type == "ai"][-1]

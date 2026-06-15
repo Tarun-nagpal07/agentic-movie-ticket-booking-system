@@ -9,6 +9,10 @@ from src.api import services
 
 logger = get_logger(__name__)
 
+
+from src.utils.seat_map import generate_seat_grid_html
+
+
 @tool("get_available_seats", args_schema=get_available_seats_request)
 @handle_errors(error_class=ToolError)
 def get_available_seats(
@@ -89,11 +93,14 @@ def get_available_seats(
         total_available += len(row_seats)
 
     logger.info(f"Seats found for show_id: {show_id}, theater_id: {theater_id}, movie_id: {movie_id}")
+    seat_map_tag = f"[SEAT_MAP:{show_id}]"
     return {
         "status": "success",
         "total_available": total_available,
-        "rows": rows_list
+        "rows": rows_list,
+        "seat_map_tag": seat_map_tag
     }
+
 
 @tool("recommend_seats", args_schema=recommend_seats_request)
 @handle_errors(error_class=ToolError)
@@ -247,12 +254,16 @@ def recommend_seats(
         rec_seat_type = show["seat_types"].get(recommended[0][0])
 
     logger.info(f"Recommended {recommended} seats for show_id: {show_id}")
+    selected_seats_str = ",".join(recommended) if recommended else ""
+    seat_map_tag = f"[SEAT_MAP:{show_id}:{selected_seats_str}]" if selected_seats_str else f"[SEAT_MAP:{show_id}]"
     return {
         "status": "success",
         "recommended_seats": recommended,
         "seat_type": rec_seat_type,
-        "based_on": based_on
+        "based_on": based_on,
+        "seat_map_tag": seat_map_tag
     }
+
 
 get_available_seats.handle_tool_error = True
 recommend_seats.handle_tool_error = True

@@ -15,6 +15,70 @@ st.set_page_config(
 # API endpoint configurations
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8005")
 
+import re
+from src.utils.seat_map import generate_seat_grid_html
+
+@st.cache_data(ttl=5)
+def fetch_and_generate_seat_html(show_id: str, selected_seats_str: str = "") -> str:
+    """
+    Fetches show seat status from API and returns HTML string representing seat layout.
+    """
+    try:
+        url = f"{API_BASE_URL}/api/showtimes/{show_id}/seats"
+        res = requests.get(url)
+        if res.status_code == 200:
+            data = res.json()
+            seats_dict = data.get("seats", {})
+            seat_types = data.get("seat_types", {})
+            selected_seats = selected_seats_str.split(",") if selected_seats_str else None
+            return generate_seat_grid_html(seats_dict, seat_types, selected_seats)
+        else:
+            logger.error(f"Error fetching seats for show_id {show_id}: HTTP status {res.status_code}")
+            return f'<div style="color: #ef4444; padding: 10px; border: 1px dashed #ef4444; border-radius: 8px;">[Seat map unavailable (status {res.status_code}) for show {show_id}]</div>'
+    except Exception as e:
+        logger.error(f"Failed to fetch and generate seat HTML for show_id {show_id}: {e}", exc_info=True)
+        return f'<div style="color: #ef4444; padding: 10px; border: 1px dashed #ef4444; border-radius: 8px;">[Seat map currently unavailable for show {show_id}]</div>'
+
+def display_assistant_message(content: str):
+    """
+    Renders assistant message content by separating text blocks and seat map tags,
+    rendering text via st.markdown and seat maps via st.html.
+    """
+    if not content:
+        return
+        
+    has_cursor = content.endswith("▌")
+    text_to_parse = content[:-1] if has_cursor else content
+    
+    pattern = r"(\[SEAT_MAP:[a-zA-Z0-9_]+(?::[a-zA-Z0-9_,]+)?\])"
+    parts = re.split(pattern, text_to_parse)
+    
+    for i, part in enumerate(parts):
+        if not part:
+            continue
+            
+        is_last = (i == len(parts) - 1)
+        suffix = "▌" if (is_last and has_cursor) else ""
+        
+        if part.startswith("[SEAT_MAP:") and part.endswith("]"):
+            inner = part[10:-1]
+            if ":" in inner:
+                show_id, selected_seats_str = inner.split(":", 1)
+            else:
+                show_id, selected_seats_str = inner, ""
+                
+            try:
+                html_layout = fetch_and_generate_seat_html(show_id, selected_seats_str)
+                st.html(html_layout)
+            except Exception as e:
+                logger.error(f"Error rendering seat map HTML: {e}")
+                st.error(f"[Seat map unavailable for show {show_id}]")
+                
+            if suffix:
+                st.markdown(suffix)
+        else:
+            st.markdown(part + suffix)
+
 # Clean solid dark theme CSS styling
 st.markdown("""
 <style>
@@ -553,7 +617,10 @@ with chat_container:
         
         # Display nicely in Streamlit
         with st.chat_message(role):
-            st.markdown(content)
+            if role == "assistant":
+                display_assistant_message(content)
+            else:
+                st.markdown(content)
 
 # Render Interrupt Block if human-in-the-loop action is required
 if is_interrupted and interrupt_payload:
@@ -777,7 +844,8 @@ if st.session_state.processing and st.session_state.current_prompt:
                                     # Clear status loading message on the first token arrival
                                     status_placeholder.empty()
                                     full_response += data.get("content", "")
-                                    response_placeholder.markdown(full_response + "▌")
+                                    with response_placeholder.container():
+                                        display_assistant_message(full_response + "▌")
                                 elif event_type == "complete":
                                     complete_payload = data
                                 elif event_type == "error":
@@ -786,7 +854,8 @@ if st.session_state.processing and st.session_state.current_prompt:
                     # Clean up the cursor and status
                     status_placeholder.empty()
                     cancel_placeholder.empty()
-                    response_placeholder.markdown(full_response)
+                    with response_placeholder.container():
+                        display_assistant_message(full_response)
                     
                     if error_msg:
                         st.session_state.chat_history.append({
