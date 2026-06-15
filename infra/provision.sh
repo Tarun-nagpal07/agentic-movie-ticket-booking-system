@@ -35,6 +35,12 @@ if ! az account show &>/dev/null; then
   az login
 fi
 
+# Ensure required resource providers are registered
+info "Ensuring required Azure Resource Providers (Microsoft.App, Microsoft.ContainerRegistry, Microsoft.OperationalInsights) are registered..."
+az provider register --namespace Microsoft.App --wait
+az provider register --namespace Microsoft.ContainerRegistry --wait
+az provider register --namespace Microsoft.OperationalInsights --wait
+
 # Configuration Defaults
 RESOURCE_GROUP="cinemagic-rg"
 LOCATION="eastus"
