@@ -25,13 +25,16 @@ RUN pip install --no-cache-dir uv
 # Copy configuration files
 COPY pyproject.toml uv.lock ./
 
-# Install project dependencies globally in the container
-RUN uv pip install --system -e .
+# Install project dependencies globally in the container using the lockfile
+RUN uv sync --frozen --system --no-install-project
 
 # Copy the application source code and relevant files
 COPY src/ ./src
 COPY data/ ./data
 COPY main.py app.py ingestion.py start.sh ./
+
+# Install the project itself (editable) without re-resolving dependencies
+RUN uv pip install --system -e . --no-deps
 
 # Make startup script executable
 RUN chmod +x start.sh
