@@ -113,6 +113,23 @@ echo -e "
     URL:           https://$APP_FQDN
 "
 
+# Automatically update the GitHub Actions workflow file with the provisioned values
+info "Updating GitHub Actions workflow configuration..."
+python3 -c "
+import sys
+path = '../.github/workflows/azure-deploy.yml'
+try:
+    content = open(path).read()
+    content = content.replace('<REGISTRY_LOGIN_SERVER>', '$ACR_LOGIN_SERVER')
+    content = content.replace('<REGISTRY_USERNAME>', '$ACR_USERNAME')
+    content = content.replace('<RESOURCE_GROUP>', '$RESOURCE_GROUP')
+    content = content.replace('<CONTAINER_APP>', '$APP_NAME')
+    open(path, 'w').write(content)
+    print('[OK] Updated GitHub Actions workflow config successfully!')
+except Exception as e:
+    print(f'[WARN] Failed to update GitHub Actions workflow file: {e}')
+"
+
 # Guide user to create Service Principal for GitHub Actions
 info "Creating Azure Service Principal for GitHub Actions CI/CD..."
 SUBSCRIPTION_ID=$(az account show --query "id" -o tsv)
@@ -128,9 +145,6 @@ success "Service Principal Created!"
 warn "Copy the following JSON block and add it as a secret named 'AZURE_CREDENTIALS' in your GitHub repository secrets:"
 echo -e "${YELLOW}$SP_JSON${RESET}"
 
-echo -e "\n${BOLD}Please configure the following secrets in GitHub Repository Settings -> Secrets -> Actions:${RESET}"
+echo -e "\n${BOLD}Please configure the following secret in GitHub Repository Settings -> Secrets -> Actions:${RESET}"
 echo -e "  1. ${BOLD}AZURE_CREDENTIALS${RESET} : (The JSON block printed above)"
-echo -e "  2. ${BOLD}AZURE_REGISTRY${RESET}    : $ACR_LOGIN_SERVER"
-echo -e "  3. ${BOLD}ACR_USERNAME${RESET}      : $ACR_USERNAME"
-echo -e "  4. ${BOLD}RESOURCE_GROUP${RESET}    : $RESOURCE_GROUP"
-echo -e "  5. ${BOLD}CONTAINER_APP${RESET}     : $APP_NAME"
+echo -e "\nNote: All other variables (Registry, Resource Group, App Name) have been automatically configured in your workflow file!"
