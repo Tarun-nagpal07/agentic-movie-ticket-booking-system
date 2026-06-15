@@ -78,7 +78,7 @@ SUPABASE_URL_MASKED=$(echo "$SUPABASE_DB_URL" | sed -E 's/:[^@]+@/:****@/')
 
 BIND_ADDRESS="127.0.0.1"
 HEADLESS_MODE="false"
-if [[ -f /.dockerenv ]]; then
+if [[ -f /.dockerenv || "${RUNNING_IN_CONTAINER:-}" == "true" ]]; then
   BIND_ADDRESS="0.0.0.0"
   HEADLESS_MODE="true"
 fi
@@ -103,7 +103,7 @@ VENV_PIP="pip3"
 VENV_UVICORN="uvicorn"
 VENV_STREAMLIT="streamlit"
 
-if [[ -f /.dockerenv ]]; then
+if [[ -f /.dockerenv || "${RUNNING_IN_CONTAINER:-}" == "true" ]]; then
   info "Running inside Docker container. Using system Python and dependencies."
   success "Virtual environment check skipped"
 else
