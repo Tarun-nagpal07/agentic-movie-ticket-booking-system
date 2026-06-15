@@ -294,6 +294,43 @@ if "processing" not in st.session_state:
 if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = None
 
+# Helper to load user threads from backend
+def fetch_user_threads():
+    token = st.session_state.get("token")
+    if not token:
+        return []
+    try:
+        url = f"{API_BASE_URL}/chat/threads"
+        res = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+        if res.status_code == 200:
+            return res.json().get("threads", [])
+        elif res.status_code == 401:
+            st.query_params.clear()
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
+    except Exception:
+        pass
+    return []
+
+# If not authenticated, check query parameters for token to support refresh persistence
+if "token" not in st.session_state and "token" in st.query_params:
+    token = st.query_params["token"]
+    try:
+        res = requests.get(f"{API_BASE_URL}/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        if res.status_code == 200:
+            user_data = res.json().get("user", {})
+            st.session_state.token = token
+            st.session_state.user_id = user_data["user_id"]
+            st.session_state.user_name = user_data["name"]
+            st.session_state.user_email = user_data["email"]
+            st.session_state.threads = fetch_user_threads()
+            st.rerun()
+        else:
+            st.query_params.clear()
+    except Exception as e:
+        logger.error(f"Auto-login via query param failed: {e}")
+
 # If not authenticated, prompt user to Login or Sign Up
 if "token" not in st.session_state:
     st.markdown('<div class="banner-title">🎬 Cinemagic Booking Portal</div>', unsafe_allow_html=True)
@@ -320,6 +357,8 @@ if "token" not in st.session_state:
                         st.session_state.user_id = data["user_id"]
                         st.session_state.user_name = data["name"]
                         st.session_state.user_email = login_email
+                        st.query_params["token"] = data["token"]  # Store token in URL query params
+                        st.session_state.threads = fetch_user_threads()
                         st.success(f"Successfully logged in as {data['name']}!")
                         st.rerun()
                     else:
@@ -360,6 +399,8 @@ if "token" not in st.session_state:
                         st.session_state.user_id = data["user_id"]
                         st.session_state.user_name = signup_name
                         st.session_state.user_email = signup_email
+                        st.query_params["token"] = data["token"]  # Store token in URL query params
+                        st.session_state.threads = fetch_user_threads()
                         st.success(f"Welcome, {signup_name}! Account created and logged in.")
                         st.rerun()
                     else:
@@ -378,20 +419,6 @@ user_input_from_state = None
 if "pending_user_input" in st.session_state:
     user_input_from_state = st.session_state.pop("pending_user_input")
 
-# Helper to load user threads from backend
-def fetch_user_threads():
-    token = st.session_state.get("token")
-    if not token:
-        return []
-    try:
-        url = f"{API_BASE_URL}/chat/threads"
-        res = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-        if res.status_code == 200:
-            return res.json().get("threads", [])
-    except Exception:
-        pass
-    return []
-
 # Sync logic: loads history from FastAPI server
 def fetch_chat_history():
     token = st.session_state.get("token")
@@ -409,6 +436,11 @@ def fetch_chat_history():
             is_interrupted = data.get("status") == "requires_confirmation"
             interrupt = data.get("interrupt")
             return messages, is_interrupted, interrupt
+        elif res.status_code == 401:
+            st.query_params.clear()
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
     except Exception as e:
         logger.error(f"Failed to load chat history: {e}")
         # Return a nice initial message explaining the error gracefully
@@ -474,8 +506,9 @@ with st.sidebar:
     if "renaming_active_unsaved" not in st.session_state:
         st.session_state.renaming_active_unsaved = False
 
-    # Update local threads cache
-    st.session_state.threads = fetch_user_threads()
+    # Use cached threads list to prevent blocking network calls on every rerun
+    if "threads" not in st.session_state:
+        st.session_state.threads = fetch_user_threads()
     db_threads = [t for t in st.session_state.threads if t]
 
     if st.session_state.renaming_active_unsaved:
@@ -541,6 +574,7 @@ with st.sidebar:
                                             st.session_state.thread_id = new_name_stripped
                                             # Reset history cache to trigger reloading
                                             st.session_state.last_thread_id = None
+                                        st.session_state.threads = fetch_user_threads()  # Refresh cached threads
                                         st.session_state.renaming_thread = None
                                         st.rerun()
                                     else:
@@ -583,6 +617,7 @@ with st.sidebar:
                                         st.session_state.chat_history = []
                                         st.session_state.is_interrupted = False
                                         st.session_state.interrupt_payload = None
+                                    st.session_state.threads = fetch_user_threads()  # Refresh cached threads
                                     st.rerun()
                                 else:
                                     st.toast(f"⚠️ Failed to delete thread: {res.text}", icon="⚠️")
@@ -878,6 +913,10 @@ if st.session_state.processing and st.session_state.current_prompt:
                         st.session_state.interrupt_payload = complete_payload.get("interrupt")
                         st.session_state.last_thread_id = st.session_state.thread_id
                         st.session_state.last_user_id = st.session_state.user_id
+                        
+                        # Refresh threads list in sidebar if the thread is new
+                        if "threads" not in st.session_state or st.session_state.thread_id not in st.session_state.threads:
+                            st.session_state.threads = fetch_user_threads()
                         
                         st.session_state.processing = False
                         st.session_state.current_prompt = None
