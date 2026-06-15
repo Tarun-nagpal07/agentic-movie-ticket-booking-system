@@ -6,6 +6,12 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  AZURE_REGISTRY: cinemagicregistryqzcyeyuaun5sa.azurecr.io
+  ACR_USERNAME: cinemagicregistryqzcyeyuaun5sa
+  RESOURCE_GROUP: cinemagic-rg
+  CONTAINER_APP: cinemagic-app
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -21,13 +27,13 @@ jobs:
 
       - name: Log in to Azure Container Registry
         run: |
-          az acr login --name ${{ secrets.ACR_USERNAME }}
+          az acr login --name ${{ env.ACR_USERNAME }}
 
       - name: Build and Push Docker Image
         run: |
           IMAGE_TAG=${{ github.sha }}
-          REGISTRY_IMAGE=${{ secrets.AZURE_REGISTRY }}/${{ secrets.CONTAINER_APP }}:$IMAGE_TAG
-          LATEST_IMAGE=${{ secrets.AZURE_REGISTRY }}/${{ secrets.CONTAINER_APP }}:latest
+          REGISTRY_IMAGE=${{ env.AZURE_REGISTRY }}/${{ env.CONTAINER_APP }}:$IMAGE_TAG
+          LATEST_IMAGE=${{ env.AZURE_REGISTRY }}/${{ env.CONTAINER_APP }}:latest
           
           # Build image
           docker build -t $REGISTRY_IMAGE -t $LATEST_IMAGE .
@@ -39,6 +45,6 @@ jobs:
       - name: Deploy Image to Azure Container App
         run: |
           az containerapp update \
-            --name ${{ secrets.CONTAINER_APP }} \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --image ${{ secrets.AZURE_REGISTRY }}/${{ secrets.CONTAINER_APP }}:${{ github.sha }}
+            --name ${{ env.CONTAINER_APP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.AZURE_REGISTRY }}/${{ env.CONTAINER_APP }}:${{ github.sha }}
