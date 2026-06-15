@@ -1,12 +1,12 @@
 from typing import TypedDict, Annotated
-import operator
+from langgraph.graph.message import add_messages
 
 class BookingState(TypedDict):
     """
     Top-level graph state. Every node in the parent graph
     reads/writes to this. Subgraph states sync overlapping keys.
     """
-    messages: Annotated[list, operator.add]  # LangGraph message list (appends)
+    messages: Annotated[list, add_messages]  # LangGraph message list (appends)
     user_id: str
     memory: dict                              # user prefs from Redis
 
@@ -40,7 +40,7 @@ class BookingAgentState(TypedDict):
     Subgraph state for the booking agent.
     Handles: search theaters → search movies → get showtimes → book tickets.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
 
     city: str | None                          # detected/extracted city
@@ -62,7 +62,7 @@ class RecommendationAgentState(TypedDict):
     Subgraph state for the recommendation agent.
     Handles: get preferences → recommend by genre/history → suggest theaters.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
     memory: dict
 
@@ -75,7 +75,7 @@ class SeatAgentState(TypedDict):
     Subgraph state for the seat selection agent.
     Handles: get seat map → filter by type → check availability.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
 
     city: str | None
@@ -96,7 +96,7 @@ class PolicyAgentState(TypedDict):
     Subgraph state for the policy agent.
     Handles: RAG retrieval over policy.json → answer FAQ questions.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
 
     retrieved_chunks: list | None             # top-K policy chunks from RAG
@@ -108,7 +108,7 @@ class CancellationAgentState(TypedDict):
     Subgraph state for the cancellation agent.
     Handles: find booking → calculate refund → prepare cancellation draft.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
 
     cancel_draft: dict | None                 # draft for cancel confirmation
@@ -121,7 +121,7 @@ class HistoryAgentState(TypedDict):
     Subgraph state for the history agent.
     Handles: get booking history, last booking, filter by status.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
 
 class MemoryAgentState(TypedDict):
@@ -129,7 +129,7 @@ class MemoryAgentState(TypedDict):
     Subgraph state for the memory agent.
     Runs after confirmations — updates user prefs in Redis.
     """
-    messages: Annotated[list, operator.add]
+    messages: Annotated[list, add_messages]
     user_id: str
     memory: dict
 

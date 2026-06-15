@@ -28,7 +28,7 @@ def get_llm(structure: bool = False):
                     api_key=settings.GROQ_API_KEY,
                     max_tokens=512,
                     streaming=True,
-                    reasoning_effort='none',
+                    reasoning_effort='low',
                 )
                 fallbacks.append(groq_llm)
         except Exception as e:
