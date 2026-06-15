@@ -27,6 +27,45 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 LOG_DIR="logs"
 
+# Helper to read .env values safely
+get_env_val() {
+  local key=$1
+  local env_val
+  eval env_val=\${$key:-}
+  if [[ -n "$env_val" ]]; then
+    echo "$env_val"
+  elif [[ -f ".env" && -n "$(grep "^${key}[[:space:]]*=" .env || echo '')" ]]; then
+    grep "^${key}[[:space:]]*=" .env | tail -n 1 | cut -d'=' -f2- | tr -d '"'\''\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+  else
+    echo ""
+  fi
+}
+
+# Check if a URL is local
+is_local() {
+  local url=$1
+  if [[ -z "$url" ]]; then
+    echo "false"
+  elif [[ "$url" =~ "localhost" || "$url" =~ "127.0.0.1" ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+REDIS_URL=$(get_env_val "REDIS_URL")
+QDRANT_URL=$(get_env_val "QDRANT_URL")
+SUPABASE_DB_URL=$(get_env_val "SUPABASE_DB_URL")
+
+REDIS_LOCAL=$(is_local "$REDIS_URL")
+QDRANT_LOCAL=$(is_local "$QDRANT_URL")
+POSTGRES_LOCAL=$(is_local "$SUPABASE_DB_URL")
+
+NEED_DOCKER=false
+if [[ "$REDIS_LOCAL" == "true" || "$QDRANT_LOCAL" == "true" || "$POSTGRES_LOCAL" == "true" ]]; then
+  NEED_DOCKER=true
+fi
+
 # ── kill backend ─────────────────────────────────────────────
 if [[ -f "$LOG_DIR/backend.pid" ]]; then
   PID=$(cat "$LOG_DIR/backend.pid")
@@ -63,11 +102,15 @@ else
 fi
 
 # ── optionally stop docker containers ───────────────────────
-if $STOP_DOCKER; then
-  info "Stopping Docker containers..."
-  docker stop movie-booking-redis movie-booking-qdrant movie-booking-postgres 2>/dev/null && success "Docker containers stopped" || warn "Some containers were already stopped"
+if $NEED_DOCKER; then
+  if $STOP_DOCKER; then
+    info "Stopping Docker containers..."
+    docker stop movie-booking-redis movie-booking-qdrant movie-booking-postgres 2>/dev/null && success "Docker containers stopped" || warn "Some containers were already stopped"
+  else
+    info "Docker containers (Redis, Qdrant, PostgreSQL) left running. Use './stop.sh --all' to also stop them."
+  fi
 else
-  info "Docker containers (Redis, Qdrant, PostgreSQL) left running. Use './stop.sh --all' to also stop them."
+  info "All database services are cloud-based. Skipping Docker checks."
 fi
 
 echo -e "\n${BOLD}${GREEN}All done. Goodbye! 🎬${RESET}\n"

@@ -69,12 +69,12 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 
 ---
 
-## 💻 Local Development Setup
+## 💻 Local Development & Cloud Setup
 
 ### Prerequisites
-*   Docker & Docker Desktop (for Redis, PostgreSQL, and Qdrant)
 *   Python >= 3.12
 *   `uv` (recommended for fast package installation)
+*   *Optional:* Docker & Docker Desktop (only required if running database services locally)
 
 ### 1. Manual Setup
 1.  **Clone the repository and enter the directory:**
@@ -88,10 +88,14 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
     source .venv/bin/activate
     pip install -e .
     ```
-3.  **Launch Docker databases (Postgres, Redis, Qdrant):**
-    ```bash
-    docker compose up -d postgres redis qdrant
-    ```
+3.  **Configure Databases:**
+    You can run databases locally using Docker or connect to remote cloud-hosted services:
+    *   **Option A: Local Databases via Docker Compose (requires Docker)**
+        ```bash
+        docker compose up -d postgres redis qdrant
+        ```
+    *   **Option B: Cloud-Hosted Databases (no local Docker required)**
+        Update your `.env` file with cloud-hosted credentials (e.g. Supabase PostgreSQL, Upstash Redis, Qdrant Cloud).
 4.  **Ingest Policies and Seed Databases:**
     ```bash
     python ingestion.py
@@ -106,19 +110,19 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
     ```
 
 ### 2. Auto-Startup Script (One-Click)
-We provide clean scripts to start and stop the local environment with a single command:
+We provide clean scripts to start and stop the application with a single command. The scripts automatically detect whether your databases are local or cloud-based based on the URLs in your `.env` file:
 
 *   **Start everything:**
     ```bash
     ./start.sh
     ```
-    *(This automatically launches Docker containers, verifies health, runs ingestion/seeding, and starts FastAPI and Streamlit.)*
+    *(This automatically launches local Docker containers if configured as local, verifies connection health for all services, runs ingestion/seeding, and starts FastAPI and Streamlit.)*
 
 *   **Stop everything:**
     ```bash
     ./stop.sh
     ```
-    *(Shuts down backend and frontend processes cleanly.)*
+    *(Shuts down backend and frontend processes cleanly, and optionally stops local Docker containers if local databases are used.)*
 
 ---
 
