@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 
 # Install project dependencies globally in the container using the lockfile
-RUN uv sync --frozen --system --no-install-project
+RUN uv pip install --system --locked -r pyproject.toml
 
 # Copy the application source code and relevant files
 COPY src/ ./src
