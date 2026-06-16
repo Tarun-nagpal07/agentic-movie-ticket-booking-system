@@ -178,18 +178,21 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
         full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
         formatted_msgs = format_messages(full_messages)
 
+        movie_posters = new_snapshot.values.get("movie_posters") or []
         if interrupt_info:
             logger.info(f"Graph paused at interrupt: {interrupt_info.get('message')}")
             return {
                 "status": "requires_confirmation",
                 "interrupt": interrupt_info,
-                "messages": formatted_msgs
+                "messages": formatted_msgs,
+                "movie_posters": movie_posters
             }
 
         logger.info("Graph execution completed successfully")
         return {
             "status": "success",
-            "messages": formatted_msgs
+            "messages": formatted_msgs,
+            "movie_posters": movie_posters
         }
 
     except Exception as e:
@@ -234,6 +237,7 @@ def get_chat_history(thread_id: str, current_user: dict = Depends(get_current_us
         }
         snapshot = graph.get_state(config)
         interrupt_info = get_active_interrupt(snapshot)
+        movie_posters = snapshot.values.get("movie_posters") or []
 
         formatted_msgs = format_messages(db_messages) if db_messages else []
         logger.info(f"Returning {len(formatted_msgs)} messages from PostgreSQL for user={user_id}, thread={thread_id}")
@@ -241,7 +245,8 @@ def get_chat_history(thread_id: str, current_user: dict = Depends(get_current_us
         return {
             "status": "requires_confirmation" if interrupt_info else "success",
             "interrupt": interrupt_info,
-            "messages": formatted_msgs
+            "messages": formatted_msgs,
+            "movie_posters": movie_posters
         }
     except Exception as e:
         logger.error(f"Error fetching history: {str(e)}")
@@ -424,18 +429,21 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
         full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
         formatted_msgs = format_messages(full_messages)
 
+        movie_posters = new_snapshot.values.get("movie_posters") or []
         if new_interrupt_info:
             logger.info(f"Graph paused at subsequent interrupt: {new_interrupt_info.get('message')}")
             return {
                 "status": "requires_confirmation",
                 "interrupt": new_interrupt_info,
-                "messages": formatted_msgs
+                "messages": formatted_msgs,
+                "movie_posters": movie_posters
             }
 
         logger.info("Graph execution completed successfully after confirmation")
         return {
             "status": "success",
-            "messages": formatted_msgs
+            "messages": formatted_msgs,
+            "movie_posters": movie_posters
         }
 
     except HTTPException as he:

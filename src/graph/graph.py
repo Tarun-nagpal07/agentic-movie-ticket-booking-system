@@ -11,11 +11,15 @@ from src.graph.nodes.confirm import confirm_node
 from src.graph.nodes.cancel_confirm import cancel_confirm_node
 from src.graph.router import route_agent
 from src.memory.short_term import get_checkpointer
+from src.agents.poster import poster_node
 
 def route_confirm_node(state: dict) -> str:
     if state.get("redirect_to_planner"):
         return "planner"
     return "memory_write"
+
+def route_after_poster(state: dict) -> str:
+    return state.get("poster_next_node", "end")
 
 def get_graph():
     # Initialize StateGraph with our parent state schema
@@ -32,6 +36,7 @@ def get_graph():
     builder.add_node("confirm_node", confirm_node)
     builder.add_node("cancel_confirm_node", cancel_confirm_node)
     builder.add_node("memory_write", memory_write_node)
+    builder.add_node("poster_node", poster_node)
 
     # Define flow logic
     # Start always goes to memory_read to fetch preferences
@@ -53,8 +58,8 @@ def get_graph():
     )
 
     # Route agent nodes to their next steps
-    # Booking agent leads to confirmation (HITL check)
-    builder.add_edge("booking_node", "confirm_node")
+    # Booking agent leads to poster node, which then goes to confirmation (HITL check)
+    builder.add_edge("booking_node", "poster_node")
     # After confirmation step, memory write runs or we route back to planner if interrupted
     builder.add_conditional_edges(
         "confirm_node",
@@ -77,13 +82,25 @@ def get_graph():
         }
     )
 
-    # Recommendation leads to memory write to record user interests/genres
-    builder.add_edge("recommendation_node", "memory_write")
+    # Recommendation leads to poster node, which then goes to memory write
+    builder.add_edge("recommendation_node", "poster_node")
 
-    # Seat, policy, and history agents do not change persistent state/memory directly,
-    # so they go straight to END (according to the user-approved plan)
+    # Policy node goes straight to END
     builder.add_edge("policy_node", END)
-    builder.add_edge("history_node", END)
+
+    # History node leads to poster node
+    builder.add_edge("history_node", "poster_node")
+
+    # Conditional routing after poster_node based on poster_next_node
+    builder.add_conditional_edges(
+        "poster_node",
+        route_after_poster,
+        {
+            "confirm_node": "confirm_node",
+            "memory_write": "memory_write",
+            "end": END
+        }
+    )
 
     # After memory write runs, the turn is complete
     builder.add_edge("memory_write", END)

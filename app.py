@@ -266,6 +266,83 @@ st.markdown("""
         0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
         40% { transform: scale(1.1); opacity: 1; }
     }
+
+    /* Movie Poster Panel - Glassmorphic horizontal list */
+    .movie-poster-panel {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 16px;
+        overflow-x: auto;
+        padding: 10px 4px 15px 4px;
+        margin-bottom: 20px;
+        scroll-behavior: smooth;
+    }
+    
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .movie-poster-panel::-webkit-scrollbar {
+        height: 6px;
+    }
+    .movie-poster-panel::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+    }
+    .movie-poster-panel::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+    }
+    .movie-poster-panel::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
+    }
+    
+    .poster-card {
+        flex: 0 0 130px;
+        width: 130px;
+        height: 230px;
+        box-sizing: border-box;
+        background: #1E293B;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 8px;
+        text-align: center;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    
+    .poster-card:hover {
+        transform: translateY(-4px);
+        border-color: #64748B;
+    }
+    
+    .poster-card img {
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+    
+    .poster-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #F1F5F9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 4px;
+    }
+    
+    .poster-meta {
+        font-size: 0.75rem;
+        color: #94A3B8;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 2px;
+    }
+    
+    .poster-rating {
+        color: #FBBF24;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -293,6 +370,9 @@ if "processing" not in st.session_state:
 
 if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = None
+
+if "movie_posters" not in st.session_state:
+    st.session_state.movie_posters = []
 
 # Helper to load user threads from backend
 def fetch_user_threads():
@@ -423,7 +503,7 @@ if "pending_user_input" in st.session_state:
 def fetch_chat_history():
     token = st.session_state.get("token")
     if not token:
-        return [], False, None
+        return [], False, None, []
     try:
         url = f"{API_BASE_URL}/chat/history"
         headers = {"Authorization": f"Bearer {token}"}
@@ -435,7 +515,8 @@ def fetch_chat_history():
             messages = data.get("messages", [])
             is_interrupted = data.get("status") == "requires_confirmation"
             interrupt = data.get("interrupt")
-            return messages, is_interrupted, interrupt
+            movie_posters = data.get("movie_posters", [])
+            return messages, is_interrupted, interrupt, movie_posters
         elif res.status_code == 401:
             st.query_params.clear()
             for k in list(st.session_state.keys()):
@@ -449,7 +530,7 @@ def fetch_chat_history():
                 "role": "assistant",
                 "content": "👋 Welcome to Cinemagic! I'm having trouble retrieving our past chat history right now, but I am ready to help you search for movies, check showtimes, and book tickets."
             }
-        ], False, None
+        ], False, None, []
 
 # Load threads dynamically for the active user if not initialized
 if "threads" not in st.session_state:
@@ -466,16 +547,19 @@ if (
     or "last_user_id" not in st.session_state 
     or st.session_state.last_user_id != st.session_state.user_id
 ):
-    messages, is_interrupted, interrupt_payload = fetch_chat_history()
+    messages, is_interrupted, interrupt_payload, movie_posters = fetch_chat_history()
     st.session_state.chat_history = messages
     st.session_state.is_interrupted = is_interrupted
     st.session_state.interrupt_payload = interrupt_payload
+    st.session_state.movie_posters = movie_posters
     st.session_state.last_thread_id = st.session_state.thread_id
     st.session_state.last_user_id = st.session_state.user_id
 else:
     messages = st.session_state.chat_history
     is_interrupted = st.session_state.is_interrupted
     interrupt_payload = st.session_state.interrupt_payload
+    if "movie_posters" not in st.session_state:
+        st.session_state.movie_posters = []
 
 # ----------------- SIDEBAR: CONTROLS & SESSION PERSISTENCE -----------------
 with st.sidebar:
@@ -544,6 +628,7 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.session_state.is_interrupted = False
         st.session_state.interrupt_payload = None
+        st.session_state.movie_posters = []
         st.session_state.renaming_thread = None
         st.session_state.renaming_active_unsaved = False
         st.rerun()
@@ -617,6 +702,7 @@ with st.sidebar:
                                         st.session_state.chat_history = []
                                         st.session_state.is_interrupted = False
                                         st.session_state.interrupt_payload = None
+                                        st.session_state.movie_posters = []
                                     st.session_state.threads = fetch_user_threads()  # Refresh cached threads
                                     st.rerun()
                                 else:
@@ -654,6 +740,22 @@ with chat_container:
         with st.chat_message(role):
             if role == "assistant":
                 display_assistant_message(content)
+                posters = msg.get("movie_posters")
+                if posters:
+                    cards_html = '<div class="movie-poster-panel" style="margin-top: 10px; margin-bottom: 5px;">'
+                    for p in posters:
+                        rating_str = f"⭐ {p.get('rating', 'N/A')}" if p.get('rating') else ""
+                        cards_html += f'''
+                        <div class="poster-card">
+                            <img src="{p["poster_url"]}" alt="{p["title"]}">
+                            <div class="poster-title" title="{p["title"]}">{p["title"]}</div>
+                            <div class="poster-meta">
+                                <span class="poster-rating">{rating_str}</span>
+                                <span>{p.get("year", "")}</span>
+                            </div>
+                        </div>'''
+                    cards_html += '</div>'
+                    st.markdown(cards_html, unsafe_allow_html=True)
             else:
                 st.markdown(content)
 
@@ -718,6 +820,7 @@ if is_interrupted and interrupt_payload:
                     st.session_state.chat_history = data.get("messages", [])
                     st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
                     st.session_state.interrupt_payload = data.get("interrupt")
+                    st.session_state.movie_posters = data.get("movie_posters", [])
                     st.success("Approved successfully!")
                     st.rerun()
                 elif res.status_code == 429:
@@ -754,6 +857,7 @@ if is_interrupted and interrupt_payload:
                     st.session_state.chat_history = data.get("messages", [])
                     st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
                     st.session_state.interrupt_payload = data.get("interrupt")
+                    st.session_state.movie_posters = data.get("movie_posters", [])
                     st.warning("Rejected/Cancelled draft booking.")
                     st.rerun()
                 elif res.status_code == 429:
@@ -911,6 +1015,7 @@ if st.session_state.processing and st.session_state.current_prompt:
                         st.session_state.chat_history = complete_payload.get("messages", [])
                         st.session_state.is_interrupted = complete_payload.get("status") == "requires_confirmation"
                         st.session_state.interrupt_payload = complete_payload.get("interrupt")
+                        st.session_state.movie_posters = complete_payload.get("movie_posters", [])
                         st.session_state.last_thread_id = st.session_state.thread_id
                         st.session_state.last_user_id = st.session_state.user_id
                         

@@ -106,7 +106,8 @@ def recommendation_node(state: RecommendationAgentState) -> RecommendationAgentS
         **state,
         "messages":           cleaned_messages,
         "recommendations":    recommendations,
-        "suggested_theaters": suggested_theaters
+        "suggested_theaters": suggested_theaters,
+        "poster_next_node":   "memory_write"
     }
     if recommendations and isinstance(recommendations, list) and len(recommendations) > 0:
         top_movie = recommendations[0]

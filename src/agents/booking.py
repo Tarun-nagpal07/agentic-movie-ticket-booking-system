@@ -442,4 +442,5 @@ def booking_node(state: BookingAgentState, config: RunnableConfig) -> BookingAge
         "movie_id":     final_movie_id,
         "movie_title":  final_movie_title,
         "show_id":      final_show_id,
+        "poster_next_node": "confirm_node"
     }

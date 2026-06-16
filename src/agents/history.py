@@ -66,4 +66,8 @@ def history_node(state: HistoryAgentState) -> HistoryAgentState:
                 "messages": [msg]
             }
         raise e
-    return {**state, "messages": extract_new_messages(input_messages, result["messages"])}
+    return {
+        **state,
+        "messages": extract_new_messages(input_messages, result["messages"]),
+        "poster_next_node": "end"
+    }

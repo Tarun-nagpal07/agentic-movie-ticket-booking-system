@@ -28,10 +28,13 @@ def format_messages(messages):
         else:
             role = m.type  # e.g. "tool"
 
-        formatted.append({
+        msg_dict = {
             "role": role,
             "content": getattr(m, "content", str(m))
-        })
+        }
+        if m.type == "ai" and hasattr(m, "additional_kwargs") and "movie_posters" in m.additional_kwargs:
+            msg_dict["movie_posters"] = m.additional_kwargs["movie_posters"]
+        formatted.append(msg_dict)
     return formatted
 
 
@@ -193,10 +196,12 @@ def run_graph_in_thread(inputs, config, q: queue.Queue, resume_value: str | None
         formatted_msgs = format_messages(full_messages)
         
         status = "requires_confirmation" if interrupt_info else "success"
+        movie_posters = snapshot.values.get("movie_posters") or []
         complete_event = {
             "type": "complete",
             "status": status,
-            "messages": formatted_msgs
+            "messages": formatted_msgs,
+            "movie_posters": movie_posters
         }
         if interrupt_info:
             complete_event["interrupt"] = interrupt_info
