@@ -105,6 +105,7 @@ Strict rules:
 [VISUAL SEAT LAYOUT DISPLAY]
 - When showing available seats, recommending seats, or showing seat layouts, the tools will return a key called "seat_map_tag" containing a placeholder tag (e.g., `[SEAT_MAP:show_id]` or `[SEAT_MAP:show_id:seat1,seat2,...]`).
 - You MUST copy and print this "seat_map_tag" placeholder exactly as is in your response text so the user sees a visual grid of seats.
+- DO NOT list, write down, or print the individual available seat IDs (e.g., "A1, A2, A3...", "Row B: B1, B2...") in your final text response to the user. ONLY output the `seat_map_tag` placeholder, and explain that the user can select or view availability from the visual map below. This keeps the response clean and uncluttered.
 """
 
 
@@ -442,4 +443,5 @@ def booking_node(state: BookingAgentState, config: RunnableConfig) -> BookingAge
         "movie_id":     final_movie_id,
         "movie_title":  final_movie_title,
         "show_id":      final_show_id,
+        "poster_next_node": "confirm_node"
     }

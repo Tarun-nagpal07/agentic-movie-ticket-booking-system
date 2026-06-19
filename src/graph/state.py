@@ -34,6 +34,9 @@ class BookingState(TypedDict):
     redirect_to_planner: bool | None          # redirect conversational interrupts to planner
     last_booking_id: str | None               # ID of most recently confirmed booking in this session
 
+    movie_posters: list | None                # [{title, poster_url, rating, year, genre}]
+    poster_next_node: str | None              # routing field: where poster_node should send next
+
 
 class BookingAgentState(TypedDict):
     """
