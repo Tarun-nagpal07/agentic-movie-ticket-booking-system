@@ -115,6 +115,13 @@ def planner_node(state: BookingState) -> BookingState:
     memory  = state.get("memory", {})
     messages = state.get("messages", [])
 
+    # Get past bookings count directly from DB to keep state/memory size minimal
+    try:
+        from src.api import services
+        bookings_count = len(services.get_user_bookings(user_id))
+    except Exception:
+        bookings_count = 0
+
     from src.utils.date_utils import get_today
     system_with_context = f"""{SYSTEM_PROMPT}
 
@@ -124,7 +131,7 @@ def planner_node(state: BookingState) -> BookingState:
                             - city: {memory.get("city", "unknown")}
                             - favorite genres: {memory.get("favorite_genres", [])}
                             - language preference: {memory.get("language_pref", "unknown")}
-                            - past bookings count: {len(memory.get("booking_history", []))}
+                            - past bookings count: {bookings_count}
                             """
 
     # LangGraph messages are objects (HumanMessage/AIMessage) with .type and .content

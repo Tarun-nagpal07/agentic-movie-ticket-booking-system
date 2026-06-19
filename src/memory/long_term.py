@@ -9,7 +9,7 @@ def get_user_memory(user_id: str) -> dict | None:
     Read user long-term memory (preferences and profile) from PostgreSQL/Supabase.
     """
     try:
-        user = services.get_user_by_id(user_id, include_bookings=True)
+        user = services.get_user_by_id(user_id, include_bookings=False)
         if not user:
             logger.warning(f"No user memory found in PostgreSQL for user {user_id}")
             return None
