@@ -21,7 +21,7 @@ def route_confirm_node(state: dict) -> str:
 def route_after_poster(state: dict) -> str:
     return state.get("poster_next_node", "end")
 
-def get_graph():
+async def get_graph():
     # Initialize StateGraph with our parent state schema
     builder = StateGraph(BookingState)
 
@@ -105,8 +105,9 @@ def get_graph():
     # After memory write runs, the turn is complete
     builder.add_edge("memory_write", END)
 
-    # Compile the graph using Redis checkpointer for short term memory state persistence
-    checkpointer = get_checkpointer()
+    # Compile the graph using async Redis checkpointer for short term memory state persistence
+    checkpointer = await get_checkpointer()
     graph = builder.compile(checkpointer=checkpointer, debug=True)
 
     return graph
+
