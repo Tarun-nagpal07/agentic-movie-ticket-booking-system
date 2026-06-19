@@ -98,8 +98,11 @@ def get_available_seats(
         "status": "success",
         "total_available": total_available,
         "rows": rows_list,
-        "seat_map_tag": seat_map_tag
+        "seat_map_tag": seat_map_tag,
+        "seats_dict": seats_dict,
+        "seat_types": show.get("seat_types", {})
     }
+
 
 
 @tool("recommend_seats", args_schema=recommend_seats_request)
@@ -261,8 +264,15 @@ def recommend_seats(
         "recommended_seats": recommended,
         "seat_type": rec_seat_type,
         "based_on": based_on,
-        "seat_map_tag": seat_map_tag
+        "seat_map_tag": seat_map_tag,
+        "seats_dict": seats_dict,
+        "seat_types": show.get("seat_types", {})
     }
+
+
+
+get_available_seats.handle_tool_error = True
+recommend_seats.handle_tool_error = True
 
 
 get_available_seats.handle_tool_error = True
