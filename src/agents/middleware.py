@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 def trim_messages(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
     """
     LangChain/LangGraph agent middleware to keep only the first message (system prompt)
-    and the last 15 messages of conversation history.
+    and the last 15 messages of conversation history, and strip large metadata.
     """
     messages = state.get("messages", [])
     print(f"--- MIDDLEWARE TRIGGERED --- Messages count: {len(messages)}")
@@ -18,22 +18,44 @@ def trim_messages(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
     if not messages:
         return None
 
-    # Trim only if we exceed 16 messages (1 system prompt + 15 conversation messages)
-    if len(messages) <= 16:
-        return None
+    # Strip seat_maps from all messages to prevent prompt context bloat
+    cleaned_messages = []
+    modified = False
+    for msg in messages:
+        if getattr(msg, "additional_kwargs", None) and "seat_maps" in msg.additional_kwargs:
+            if hasattr(msg, "model_copy"):
+                msg_copy = msg.model_copy()
+            else:
+                msg_copy = msg.copy()
+            msg_copy.additional_kwargs = msg.additional_kwargs.copy()
+            msg_copy.additional_kwargs.pop("seat_maps", None)
+            cleaned_messages.append(msg_copy)
+            modified = True
+        else:
+            cleaned_messages.append(msg)
 
-    system_msg = messages[0]
-    recent_messages = messages[-15:]
-    new_messages = [system_msg] + recent_messages
-
-    logger.info(f"trim_messages middleware: Pruning conversation messages from {len(messages)} to {len(new_messages)} messages.")
+    # Trim if we exceed 16 messages (1 system prompt + 15 conversation messages)
+    if len(cleaned_messages) > 16:
+        system_msg = cleaned_messages[0]
+        recent_messages = cleaned_messages[-15:]
+        final_messages = [system_msg] + recent_messages
+        logger.info(f"trim_messages middleware: Pruning conversation messages from {len(messages)} to {len(final_messages)} messages.")
+        return {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                *final_messages
+            ]
+        }
     
-    return {
-        "messages": [
-            RemoveMessage(id=REMOVE_ALL_MESSAGES),
-            *new_messages
-        ]
-    }
+    if modified:
+        return {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                *cleaned_messages
+            ]
+        }
+        
+    return None
 
 
 def extract_new_messages(input_messages: list[Any], output_messages: list[Any]) -> list[Any]:

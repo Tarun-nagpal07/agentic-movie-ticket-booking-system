@@ -39,7 +39,7 @@ def fetch_and_generate_seat_html(show_id: str, selected_seats_str: str = "") -> 
         logger.error(f"Failed to fetch and generate seat HTML for show_id {show_id}: {e}", exc_info=True)
         return f'<div style="color: #ef4444; padding: 10px; border: 1px dashed #ef4444; border-radius: 8px;">[Seat map currently unavailable for show {show_id}]</div>'
 
-def display_assistant_message(content: str):
+def display_assistant_message(content: str, seat_maps: dict = None):
     """
     Renders assistant message content by separating text blocks and seat map tags,
     rendering text via st.markdown and seat maps via st.html.
@@ -68,7 +68,18 @@ def display_assistant_message(content: str):
                 show_id, selected_seats_str = inner, ""
                 
             try:
-                html_layout = fetch_and_generate_seat_html(show_id, selected_seats_str)
+                # Retrieve snapshot if available
+                seat_map_snapshot = None
+                if seat_maps and show_id in seat_maps:
+                    seat_map_snapshot = seat_maps[show_id]
+
+                if seat_map_snapshot:
+                    seats_dict = seat_map_snapshot.get("seats", {})
+                    seat_types = seat_map_snapshot.get("seat_types", {})
+                    selected_seats = selected_seats_str.split(",") if selected_seats_str else None
+                    html_layout = generate_seat_grid_html(seats_dict, seat_types, selected_seats)
+                else:
+                    html_layout = fetch_and_generate_seat_html(show_id, selected_seats_str)
                 st.html(html_layout)
             except Exception as e:
                 logger.error(f"Error rendering seat map HTML: {e}")
@@ -739,7 +750,7 @@ with chat_container:
         # Display nicely in Streamlit
         with st.chat_message(role):
             if role == "assistant":
-                display_assistant_message(content)
+                display_assistant_message(content, msg.get("seat_maps"))
                 posters = msg.get("movie_posters")
                 if posters:
                     cards_html = '<div class="movie-poster-panel" style="margin-top: 10px; margin-bottom: 5px;">'

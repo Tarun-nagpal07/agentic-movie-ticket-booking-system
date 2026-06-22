@@ -36,8 +36,11 @@ def format_messages(messages):
             "role": role,
             "content": getattr(m, "content", str(m))
         }
-        if m.type == "ai" and hasattr(m, "additional_kwargs") and "movie_posters" in m.additional_kwargs:
-            msg_dict["movie_posters"] = m.additional_kwargs["movie_posters"]
+        if m.type == "ai" and hasattr(m, "additional_kwargs"):
+            if "movie_posters" in m.additional_kwargs:
+                msg_dict["movie_posters"] = m.additional_kwargs["movie_posters"]
+            if "seat_maps" in m.additional_kwargs:
+                msg_dict["seat_maps"] = m.additional_kwargs["seat_maps"]
         formatted.append(msg_dict)
     return formatted
 
@@ -78,6 +81,30 @@ def save_messages_to_postgress(user_id: str, thread_id: str, messages: list):
         return
     try:
         serialized_messages = messages_to_dict(messages)
+        import re
+        from src.api import services
+        for msg_dict in serialized_messages:
+            if msg_dict.get("type") == "ai":
+                data = msg_dict.setdefault("data", {})
+                content = data.get("content", "")
+                if content:
+                    show_ids = re.findall(r"\[SEAT_MAP:([a-zA-Z0-9_]+)(?::[a-zA-Z0-9_,]+)?\]", content)
+                    if show_ids:
+                        additional_kwargs = data.setdefault("additional_kwargs", {})
+                        seat_maps = additional_kwargs.setdefault("seat_maps", {})
+                        for show_id in show_ids:
+                            if show_id not in seat_maps:
+                                show = services.get_show_details(show_id)
+                                if show:
+                                    seats_dict = services.get_show_seats(show_id)
+                                    seat_maps[show_id] = {
+                                        "seats": seats_dict,
+                                        "seat_types": show.get("seat_types", {})
+                                    }
+                                    logger.info(f"Snapshotted seats for show_id={show_id} in serialized assistant message")
+                                else:
+                                    logger.warning(f"Could not fetch show details for show_id={show_id} during snapshotting")
+
         with get_db_cursor() as cur:
             cur.execute(
                 """
