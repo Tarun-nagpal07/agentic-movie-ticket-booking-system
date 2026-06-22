@@ -208,7 +208,7 @@ def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str
 
 @tool("book_tickets",args_schema=BookingRequest)
 @handle_errors(error_class=BookingError)
-def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: RunnableConfig) -> dict:
+def book_tickets(show_id: str, seats: list[str], num_tickets: int, coupon_code: str | None = None, config: RunnableConfig = None) -> dict:
     """
     Validates and prepares a booking draft.
     Does NOT confirm the booking — confirmation happens separately.
@@ -217,8 +217,9 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
         show_id: from get_showtimes result
         seats: from recommend_seats result
         num_tickets: must match len(seats)
+        coupon_code: optional promo code to apply (e.g. FILM100)
     """
-    user_id = config.get("configurable", {}).get("user_id")
+    user_id = config.get("configurable", {}).get("user_id") if config else None
     if not user_id:
         raise BookingError(
             message="User ID not found in context.",
@@ -261,10 +262,50 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
     if unavailable:
         raise BookingError(message=f"Seats {unavailable} are not available.", code="SEATS_NOT_AVAILABLE", recoverable=True)
 
+    # Coupon validation
+    actual_coupon_code = None
+    discount_amount = 0.0
+    original_price = show["price"] * num_tickets
+    total_price = original_price
+
+    if coupon_code:
+        coupon = services.get_coupon_by_code(coupon_code)
+        if not coupon or not coupon["is_active"]:
+            raise BookingError(message="Invalid or inactive coupon code.", code="INVALID_COUPON", recoverable=True)
+        if services.has_user_used_coupon(user_id, coupon["coupon_code"]):
+            raise BookingError(message="You have already used this coupon code. You cannot use it again.", code="COUPON_ALREADY_USED", recoverable=True)
+        
+        # Movie restriction
+        if coupon["movie_id"] and coupon["movie_id"] != movie_id:
+            from src.utils.id_cleaner import get_movie_title_by_id
+            m_title = get_movie_title_by_id(coupon["movie_id"]) or coupon["movie_id"]
+            raise BookingError(message=f"This coupon is only valid for the movie '{m_title}'.", code="COUPON_MOVIE_RESTRICTION", recoverable=True)
+        
+        # Theater restriction
+        if coupon["theater_id"] and coupon["theater_id"] != theater_id:
+            from src.utils.id_cleaner import get_theater_name_by_id
+            t_name = get_theater_name_by_id(coupon["theater_id"]) or coupon["theater_id"]
+            raise BookingError(message=f"This coupon is only valid at the theater '{t_name}'.", code="COUPON_THEATER_RESTRICTION", recoverable=True)
+        
+        # Brand restriction
+        if coupon["theater_brand"]:
+            theater = services.get_theater_by_id(theater_id)
+            if not theater or coupon["theater_brand"].lower() not in theater["name"].lower():
+                raise BookingError(message=f"This coupon is only valid at {coupon['theater_brand']} theaters.", code="COUPON_BRAND_RESTRICTION", recoverable=True)
+        
+        # Calculate discount
+        if coupon["discount_type"] == "flat":
+            discount_amount = coupon["discount_value"]
+        elif coupon["discount_type"] == "percent":
+            discount_amount = original_price * (coupon["discount_value"] / 100.0)
+            
+        discount_amount = min(discount_amount, original_price)
+        total_price = int(original_price - discount_amount)
+        actual_coupon_code = coupon["coupon_code"]
+
     # build draft — do NOT write to JSON/DB yet
     import uuid
     booking_id  = f"b_{uuid.uuid4().hex[:6]}"
-    total_price = show["price"] * num_tickets
 
     from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
 
@@ -285,6 +326,9 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
         "seat_types":       show.get("seat_types", {}),  # for memory agent seat pref inference
         "num_tickets":      num_tickets,
         "price_per_ticket": show["price"],
+        "original_price":   original_price,
+        "discount_amount":  discount_amount,
+        "coupon_code":      actual_coupon_code,
         "total_price":      total_price,
         "status":           "pending",
         "booked_at":        get_now(),
@@ -292,7 +336,7 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, config: Runna
         "cancelled_at":     None
     }
 
-    logger.info(f"booking draft prepared for show {show_id} user {user_id}")
+    logger.info(f"booking draft prepared for show {show_id} user {user_id} with coupon={actual_coupon_code} discount={discount_amount}")
 
     # return draft into state — graph confirm node handles the rest
     return {"status": "draft", "booking_draft": draft}

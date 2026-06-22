@@ -85,6 +85,7 @@ def init_db(force: bool = False):
                     DROP TABLE IF EXISTS user_sessions CASCADE;
                     DROP TABLE IF EXISTS booking_seats CASCADE;
                     DROP TABLE IF EXISTS bookings CASCADE;
+                    DROP TABLE IF EXISTS coupons CASCADE;
                     DROP TABLE IF EXISTS seats CASCADE;
                     DROP TABLE IF EXISTS showtimes CASCADE;
                     DROP TABLE IF EXISTS screens CASCADE;
@@ -155,6 +156,21 @@ def init_db(force: bool = False):
                 );
             """)
 
+            # Coupons
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS coupons (
+                    coupon_code VARCHAR(50) PRIMARY KEY,
+                    discount_type VARCHAR(20) NOT NULL,
+                    discount_value FLOAT NOT NULL,
+                    movie_id VARCHAR(50) REFERENCES movies(movie_id) ON DELETE CASCADE,
+                    theater_id VARCHAR(50) REFERENCES theaters(theater_id) ON DELETE CASCADE,
+                    theater_brand VARCHAR(50),
+                    description TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
             # Screens
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS screens (
@@ -219,6 +235,9 @@ def init_db(force: bool = False):
                     cancelled_at TIMESTAMP WITH TIME ZONE
                 );
             """)
+
+            # Alter bookings table to support coupons if table already exists
+            cur.execute("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);")
 
             # Booking Seats
             cur.execute("""

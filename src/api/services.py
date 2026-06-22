@@ -144,7 +144,8 @@ def booking_row_to_dict(row):
         "refund_amount": row[14],
         "reason": row[15],
         "booked_at": booked_at_str,
-        "cancelled_at": cancelled_at_str
+        "cancelled_at": cancelled_at_str,
+        "coupon_code": row[18] if len(row) > 18 else None
     }
 
 # --- Movie Services ---
@@ -328,7 +329,7 @@ def update_user_preferences(user_id: str, preferences: dict) -> None:
 
 # --- Booking Services ---
 
-def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str = None) -> dict:
+def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str = None, coupon_code: str = None) -> dict:
     """Atomic booking of seats in a transaction."""
     try:
         uuid.UUID(user_id)
@@ -341,8 +342,55 @@ def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str
 
     # We obtain the database cursor and run everything in ONE single transaction (get_db_cursor handles commit/rollback)
     with get_db_cursor() as cur:
-        # 1. Lock seats FOR UPDATE to prevent race conditions
-        # We need to lock the rows matching show_id and seat labels
+        # 1. Get show details first
+        cur.execute("""
+            SELECT movie_id, theater_id, screen_no, screen_name, show_date, show_time, format, price, seat_types 
+            FROM showtimes WHERE show_id = %s;
+        """, (show_id,))
+        show_row = cur.fetchone()
+        if not show_row:
+            raise ValueError(f"Show {show_id} not found.")
+            
+        movie_id, theater_id, screen_no, screen_name, show_date, show_time, format, price, seat_types = show_row
+        
+        # 2. Validate and apply coupon if provided
+        actual_coupon_code = None
+        discount_amount = 0.0
+        original_total = price * len(seats)
+        total_price = original_total
+
+        if coupon_code:
+            coupon = get_coupon_by_code(coupon_code)
+            if not coupon or not coupon["is_active"]:
+                raise ValueError("Invalid or inactive coupon code.")
+            if has_user_used_coupon(user_id, coupon["coupon_code"]):
+                raise ValueError("You have already used this coupon code. You cannot use it again.")
+            
+            # Movie restriction
+            if coupon["movie_id"] and coupon["movie_id"] != movie_id:
+                raise ValueError("This coupon is not valid for the selected movie.")
+            
+            # Theater restriction
+            if coupon["theater_id"] and coupon["theater_id"] != theater_id:
+                raise ValueError("This coupon is not valid for the selected theater.")
+            
+            # Theater brand restriction (case-insensitive check against theater name)
+            if coupon["theater_brand"]:
+                theater = get_theater_by_id(theater_id)
+                if not theater or coupon["theater_brand"].lower() not in theater["name"].lower():
+                    raise ValueError(f"This coupon is only valid at {coupon['theater_brand']} theaters.")
+            
+            # Calculate discount
+            if coupon["discount_type"] == "flat":
+                discount_amount = coupon["discount_value"]
+            elif coupon["discount_type"] == "percent":
+                discount_amount = original_total * (coupon["discount_value"] / 100.0)
+            
+            discount_amount = min(discount_amount, original_total)
+            total_price = int(original_total - discount_amount)
+            actual_coupon_code = coupon["coupon_code"]
+
+        # 3. Lock seats FOR UPDATE to prevent race conditions
         seat_placeholders = ", ".join(["%s"] * len(seats))
         cur.execute(f"""
             SELECT seat_label, status 
@@ -359,34 +407,22 @@ def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str
                 raise ValueError(f"Seat {seat} does not exist for show {show_id}.")
             if seat_status_map[seat] != SeatStatus.AVAILABLE:
                 raise ValueError(f"Seat {seat} is not available (status: {seat_status_map[seat]}).")
-                
-        # 2. Get show details
-        cur.execute("""
-            SELECT movie_id, theater_id, screen_no, screen_name, show_date, show_time, format, price, seat_types 
-            FROM showtimes WHERE show_id = %s;
-        """, (show_id,))
-        show_row = cur.fetchone()
-        if not show_row:
-            raise ValueError(f"Show {show_id} not found.")
-            
-        movie_id, theater_id, screen_no, screen_name, show_date, show_time, format, price, seat_types = show_row
-        
-        # 3. Flip seat statuses to booked
+
+        # 4. Flip seat statuses to booked
         cur.execute(f"""
             UPDATE seats 
             SET status = %s 
             WHERE show_id = %s AND seat_label IN ({seat_placeholders});
         """, [SeatStatus.BOOKED, show_id] + list(seats))
         
-        # 4. Insert booking
+        # 5. Insert booking
         num_tickets = len(seats)
-        total_price = price * num_tickets
         cur.execute("""
-            INSERT INTO bookings (booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, format, num_tickets, price_per_ticket, total_price, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """, (booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, format, num_tickets, price, total_price, BookingStatus.CONFIRMED))
+            INSERT INTO bookings (booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, format, num_tickets, price_per_ticket, total_price, status, coupon_code)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """, (booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, format, num_tickets, price, total_price, BookingStatus.CONFIRMED, actual_coupon_code))
         
-        # 5. Insert booking seats
+        # 6. Insert booking seats
         for seat in seats:
             row_prefix = seat[0]
             seat_type = seat_types.get(row_prefix, "standard") if isinstance(seat_types, dict) else "standard"
@@ -441,7 +477,7 @@ def get_booking_by_id(booking_id: str) -> dict | None:
     with get_db_cursor() as cur:
         cur.execute("""
             SELECT booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, 
-                   format, num_tickets, price_per_ticket, total_price, status, refund_amount, reason, booked_at, cancelled_at 
+                   format, num_tickets, price_per_ticket, total_price, status, refund_amount, reason, booked_at, cancelled_at, coupon_code 
             FROM bookings 
             WHERE booking_id = %s;
         """, (booking_id,))
@@ -458,7 +494,7 @@ def get_user_bookings(user_id: str) -> list[dict]:
     with get_db_cursor() as cur:
         cur.execute("""
             SELECT booking_id, user_id, movie_id, theater_id, screen_no, screen_name, show_id, show_date, show_time, 
-                   format, num_tickets, price_per_ticket, total_price, status, refund_amount, reason, booked_at, cancelled_at 
+                   format, num_tickets, price_per_ticket, total_price, status, refund_amount, reason, booked_at, cancelled_at, coupon_code 
             FROM bookings 
             WHERE user_id = %s 
             ORDER BY booked_at DESC;
@@ -476,3 +512,63 @@ def get_policies_by_topic(topic: str) -> list[dict]:
             "topic": r[1],
             "text": r[2]
         } for r in cur.fetchall()]
+
+# --- Coupon Services ---
+
+def get_active_coupons() -> list[dict]:
+    with get_db_cursor() as cur:
+        cur.execute("""
+            SELECT coupon_code, discount_type, discount_value, movie_id, theater_id, theater_brand, description, is_active
+            FROM coupons
+            WHERE is_active = TRUE;
+        """)
+        rows = cur.fetchall()
+        return [{
+            "coupon_code": r[0],
+            "discount_type": r[1],
+            "discount_value": r[2],
+            "movie_id": r[3],
+            "theater_id": r[4],
+            "theater_brand": r[5],
+            "description": r[6],
+            "is_active": r[7]
+        } for r in rows]
+
+def get_coupon_by_code(coupon_code: str) -> dict | None:
+    if not coupon_code:
+        return None
+    with get_db_cursor() as cur:
+        cur.execute("""
+            SELECT coupon_code, discount_type, discount_value, movie_id, theater_id, theater_brand, description, is_active
+            FROM coupons
+            WHERE UPPER(coupon_code) = UPPER(%s);
+        """, (coupon_code.strip(),))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "coupon_code": row[0],
+            "discount_type": row[1],
+            "discount_value": row[2],
+            "movie_id": row[3],
+            "theater_id": row[4],
+            "theater_brand": row[5],
+            "description": row[6],
+            "is_active": row[7]
+        }
+
+def has_user_used_coupon(user_id: str, coupon_code: str) -> bool:
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        from src.db.seed import get_user_uuid
+        user_id = get_user_uuid(user_id)
+        
+    with get_db_cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) 
+            FROM bookings 
+            WHERE user_id = %s AND UPPER(coupon_code) = UPPER(%s) AND status = %s;
+        """, (user_id, coupon_code.strip(), BookingStatus.CONFIRMED))
+        count = cur.fetchone()[0]
+        return count > 0

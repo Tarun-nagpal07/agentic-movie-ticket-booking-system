@@ -19,6 +19,8 @@ INTENT_TO_AGENT = {
     Intent.CANCEL_BOOKING:   "cancellation",
     Intent.GET_HISTORY:      "history",
     Intent.POLICY_QUERY:     "policy",
+    Intent.VIEW_OFFERS:      "booking",
+    Intent.APPLY_COUPON:     "booking",
     Intent.UNKNOWN:          "unknown",
 }
 
@@ -37,6 +39,8 @@ Supported intents:
 - cancel_booking    : user wants to cancel an existing booking
 - get_history       : user wants to see past bookings or spending
 - policy_query      : user asks about cancellation rules, refunds, policies, FAQs
+- view_offers       : user asks if there are any offers, discounts, or available coupons for selected movies/theaters
+- apply_coupon      : user enters a coupon code to apply to a transaction/booking (e.g. FILM100)
 - unknown           : cannot determine intent from message
 
 Rules:
@@ -50,6 +54,8 @@ Rules:
 - "rebook" or "same as last time" → book_tickets intent
 - "what can I watch" or "suggest" → recommend_movies intent
 - "where can I watch X" → search_movies intent
+- "is there any offers", "discount code", "available coupons" -> view_offers intent
+- "apply coupon XYZ", "code FILM100" -> apply_coupon intent
 """
 
 def resolve_date_string(date_str: str | None) -> str:
@@ -172,7 +178,7 @@ def planner_node(state: BookingState) -> BookingState:
             
             You must classify the user message and return your response as a valid JSON object matching this schema:
             {{
-                "intent": "string (one of: search_movies, get_showtimes, book_tickets, select_seats, recommend_movies, cancel_booking, get_history, policy_query, unknown)",
+                "intent": "string (one of: search_movies, get_showtimes, book_tickets, select_seats, recommend_movies, cancel_booking, get_history, policy_query, view_offers, apply_coupon, unknown)",
                 "city": "string or null",
                 "movie_title": "string or null"
             }}

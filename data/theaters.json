@@ -120,6 +120,59 @@
           "food_court"
         ],
         "parking": true
+      },
+      {
+        "theater_id": "t11",
+        "name": "Carnival Cinema Himalaya Mall",
+        "city": "ahmedabad",
+        "address": "Himalaya Mall, Drive In Rd, Ahmedabad",
+        "latitude": 23.0455,
+        "longitude": 72.5302,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "dolby_atmos",
+          "food_court"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t12",
+        "name": "Wide Angle Cinema",
+        "city": "ahmedabad",
+        "address": "Satellite, SG Highway, Ahmedabad",
+        "latitude": 23.0234,
+        "longitude": 72.5085,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "standard"
+        ],
+        "parking": true
       }
     ],
     "mumbai": [
@@ -229,6 +282,59 @@
           "food_court"
         ],
         "parking": false
+      },
+      {
+        "theater_id": "t13",
+        "name": "PVR Phoenix Palladium",
+        "city": "mumbai",
+        "address": "Senapati Bapat Marg, Lower Parel, Mumbai",
+        "latitude": 18.9942,
+        "longitude": 72.8258,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "IMAX Screen",
+            "format": "IMAX",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "imax",
+          "recliner"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t14",
+        "name": "Inox R-City Mall",
+        "city": "mumbai",
+        "address": "LBS Marg, Ghatkopar West, Mumbai",
+        "latitude": 19.0995,
+        "longitude": 72.9164,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "dolby_atmos"
+        ],
+        "parking": true
       }
     ],
     "delhi": [
@@ -316,6 +422,60 @@
           "standard",
           "dolby_atmos",
           "food_court"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t15",
+        "name": "INOX Nehru Place",
+        "city": "delhi",
+        "address": "Nehru Place, New Delhi",
+        "latitude": 28.5492,
+        "longitude": 77.2515,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "dolby_atmos",
+          "food_court"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t16",
+        "name": "PVR Director's Cut",
+        "city": "delhi",
+        "address": "Ambience Mall, Vasant Kunj, New Delhi",
+        "latitude": 28.5412,
+        "longitude": 77.1542,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "standard",
+          "recliner"
         ],
         "parking": true
       }
@@ -410,6 +570,59 @@
         "amenities": [
           "standard",
           "dolby_atmos",
+          "food_court"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t17",
+        "name": "Cinepolis Nexus Shantiniketan",
+        "city": "bangalore",
+        "address": "Whitefield, Bangalore",
+        "latitude": 12.9845,
+        "longitude": 77.7285,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Dolby Screen",
+            "format": "Dolby",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "dolby_atmos"
+        ],
+        "parking": true
+      },
+      {
+        "theater_id": "t18",
+        "name": "Inox Mantri Square",
+        "city": "bangalore",
+        "address": "Sampige Road, Malleshwaram, Bangalore",
+        "latitude": 12.9915,
+        "longitude": 77.5712,
+        "screens": [
+          {
+            "screen_no": 1,
+            "name": "Standard 1",
+            "format": "standard",
+            "capacity": 28
+          },
+          {
+            "screen_no": 2,
+            "name": "Standard 2",
+            "format": "standard",
+            "capacity": 28
+          }
+        ],
+        "amenities": [
+          "standard",
           "food_court"
         ],
         "parking": true

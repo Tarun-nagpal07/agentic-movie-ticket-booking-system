@@ -291,6 +291,28 @@ def seed_database():
     except Exception as e:
         logger.error(f"Error seeding bookings: {e}", exc_info=True)
 
+    # 7. Seed Coupons
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("TRUNCATE TABLE coupons CASCADE;")
+            
+            mock_coupons = [
+                ("FILM100", "flat", 100.0, None, None, None, "Get flat ₹100 off on any movie tickets!"),
+                ("PVR50", "flat", 50.0, None, None, "PVR", "Get flat ₹50 off at any PVR theater!"),
+                ("INOX20", "percent", 20.0, None, None, "INOX", "Get 20% off at any INOX theater!"),
+                ("PUSHPA100", "flat", 100.0, "m4", None, None, "Special discount: ₹100 off on Pushpa 2!"),
+                ("INTERSTELLAR50", "flat", 50.0, "m1", None, None, "Get flat ₹50 off on Interstellar!")
+            ]
+            
+            for code, dtype, val, mid, tid, brand, desc in mock_coupons:
+                cur.execute("""
+                    INSERT INTO coupons (coupon_code, discount_type, discount_value, movie_id, theater_id, theater_brand, description)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                """, (code, dtype, val, mid, tid, brand, desc))
+        logger.info("Seeded mock coupons successfully.")
+    except Exception as e:
+        logger.error(f"Error seeding coupons: {e}", exc_info=True)
+
     logger.info("Database seeding completed.")
 
 if __name__ == "__main__":
