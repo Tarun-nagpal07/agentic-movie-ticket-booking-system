@@ -1,10 +1,6 @@
 import json
-import queue
-import asyncio
 from datetime import datetime, timezone
 from langchain_core.messages import HumanMessage, messages_to_dict, messages_from_dict
-from langchain_core.callbacks import BaseCallbackHandler
-from langgraph.types import Command
 
 from src.graph.graph import get_graph
 from src.utils.logger import get_logger
@@ -13,8 +9,16 @@ from src.config.settings import settings
 
 logger = get_logger("chat_utils")
 
-# Initialize LangGraph instance
-graph = get_graph()
+# Lazily initialized async graph instance
+_graph = None
+
+
+async def get_graph_instance():
+    """Lazily initialize and cache the async-compiled LangGraph instance."""
+    global _graph
+    if _graph is None:
+        _graph = await get_graph()
+    return _graph
 
 
 def format_messages(messages):
@@ -32,8 +36,11 @@ def format_messages(messages):
             "role": role,
             "content": getattr(m, "content", str(m))
         }
-        if m.type == "ai" and hasattr(m, "additional_kwargs") and "movie_posters" in m.additional_kwargs:
-            msg_dict["movie_posters"] = m.additional_kwargs["movie_posters"]
+        if m.type == "ai" and hasattr(m, "additional_kwargs"):
+            if "movie_posters" in m.additional_kwargs:
+                msg_dict["movie_posters"] = m.additional_kwargs["movie_posters"]
+            if "seat_maps" in m.additional_kwargs:
+                msg_dict["seat_maps"] = m.additional_kwargs["seat_maps"]
         formatted.append(msg_dict)
     return formatted
 
@@ -74,6 +81,30 @@ def save_messages_to_postgress(user_id: str, thread_id: str, messages: list):
         return
     try:
         serialized_messages = messages_to_dict(messages)
+        import re
+        from src.api import services
+        for msg_dict in serialized_messages:
+            if msg_dict.get("type") == "ai":
+                data = msg_dict.setdefault("data", {})
+                content = data.get("content", "")
+                if content:
+                    show_ids = re.findall(r"\[SEAT_MAP:([a-zA-Z0-9_]+)(?::[a-zA-Z0-9_,]+)?\]", content)
+                    if show_ids:
+                        additional_kwargs = data.setdefault("additional_kwargs", {})
+                        seat_maps = additional_kwargs.setdefault("seat_maps", {})
+                        for show_id in show_ids:
+                            if show_id not in seat_maps:
+                                show = services.get_show_details(show_id)
+                                if show:
+                                    seats_dict = services.get_show_seats(show_id)
+                                    seat_maps[show_id] = {
+                                        "seats": seats_dict,
+                                        "seat_types": show.get("seat_types", {})
+                                    }
+                                    logger.info(f"Snapshotted seats for show_id={show_id} in serialized assistant message")
+                                else:
+                                    logger.warning(f"Could not fetch show details for show_id={show_id} during snapshotting")
+
         with get_db_cursor() as cur:
             cur.execute(
                 """
@@ -138,77 +169,32 @@ def get_langfuse_callback(user_id: str, thread_id: str):
     return None
 
 
-class QueueCallbackHandler(BaseCallbackHandler):
-    def __init__(self, q: queue.Queue):
-        self.q = q
-        self.active_stream = False
+def log_token_usage(new_messages: list, endpoint: str, user_id: str, thread_id: str):
+    """
+    Extracts and logs token usage from AI messages generated during this turn.
+    Each AIMessage may carry usage_metadata with input_tokens, output_tokens, total_tokens.
+    """
+    total_input = 0
+    total_output = 0
+    total_tokens = 0
+    llm_calls = 0
 
-    def on_llm_start(self, serialized, prompts, **kwargs):
-        metadata = kwargs.get("metadata", {})
-        node = metadata.get("langgraph_node", "")
-        # Filter out planner node's LLM tokens (JSON structured data)
-        if node == "planner":
-            self.active_stream = False
-            self.q.put({"type": "status", "content": "Analyzing request intent..."})
-        else:
-            self.active_stream = True
-            checkpoint_ns = metadata.get("checkpoint_ns", "")
-            agent_name = checkpoint_ns.split(":")[0].replace("_node", "").replace("_", " ").title() if checkpoint_ns else "assistant"
-            self.q.put({"type": "status", "content": f"Cinemagic {agent_name} formulating response..."})
+    for m in new_messages:
+        usage = getattr(m, "usage_metadata", None)
+        if usage and isinstance(usage, dict):
+            total_input += usage.get("input_tokens", 0)
+            total_output += usage.get("output_tokens", 0)
+            total_tokens += usage.get("total_tokens", 0)
+            llm_calls += 1
 
-    def on_llm_new_token(self, token: str, **kwargs) -> None:
-        if self.active_stream:
-            self.q.put({"type": "token", "content": token})
-
-    def on_tool_start(self, serialized, input_str, **kwargs):
-        tool_name = serialized.get("name", "")
-        nice_name = tool_name.replace("_", " ").title()
-        self.q.put({"type": "status", "content": f"Retrieving database records ({nice_name})..."})
-
-
-def run_graph_in_thread(inputs, config, q: queue.Queue, resume_value: str | None = None):
-    """Runner function executed inside uvicorn's thread pool to invoke the StateGraph."""
-    try:
-        # Get existing state messages before invoking to isolate newly generated messages
-        pre_snapshot = graph.get_state(config)
-        old_messages = pre_snapshot.values.get("messages", [])
-        old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
-
-        if resume_value is not None:
-            graph.invoke(Command(resume=resume_value, update=inputs), config)
-        else:
-            graph.invoke(inputs, config)
-            
-        snapshot = graph.get_state(config)
-        interrupt_info = get_active_interrupt(snapshot)
-        logger.info(f"[HITL-DEBUG] graph finished. interrupt_info={'present: ' + str(interrupt_info.get('message')) if interrupt_info else 'None'}")
-        
-        all_messages = snapshot.values.get("messages", [])
-        
-        # Filter only genuinely new messages generated/received during this execution turn
-        new_messages = [m for m in all_messages if getattr(m, "id", None) not in old_ids]
-        
-        # Append only genuinely new messages to PostgreSQL, never overwrite full history
-        append_new_messages_to_db(inputs["user_id"], inputs["thread_id"], new_messages)
-        
-        # Always load the complete history from DB as the source of truth
-        full_messages = load_messages_from_postgress(inputs["user_id"], inputs["thread_id"])
-        formatted_msgs = format_messages(full_messages)
-        
-        status = "requires_confirmation" if interrupt_info else "success"
-        movie_posters = snapshot.values.get("movie_posters") or []
-        complete_event = {
-            "type": "complete",
-            "status": status,
-            "messages": formatted_msgs,
-            "movie_posters": movie_posters
-        }
-        if interrupt_info:
-            complete_event["interrupt"] = interrupt_info
-            
-        q.put(complete_event)
-    except Exception as e:
-        logger.error(f"Error in graph execution thread: {str(e)}", exc_info=True)
-        q.put({"type": "error", "message": f"Graph execution failed: {str(e)}"})
-    finally:
-        q.put(None)
+    if llm_calls > 0:
+        logger.info(
+            f"[TOKEN USAGE] endpoint={endpoint} | user={user_id} | thread={thread_id} | "
+            f"llm_calls={llm_calls} | input_tokens={total_input} | "
+            f"output_tokens={total_output} | total_tokens={total_tokens}"
+        )
+    else:
+        logger.info(
+            f"[TOKEN USAGE] endpoint={endpoint} | user={user_id} | thread={thread_id} | "
+            f"no token usage metadata available"
+        )

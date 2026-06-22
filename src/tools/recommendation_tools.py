@@ -42,8 +42,7 @@ def make_recommendation_tools(user_id: str, memory: dict):
             "preferred_seat_type":   memory.get("preferred_seat_type"),
             "preferred_theaters":    memory.get("preferred_theaters", []),
             "preferred_format":      memory.get("preferred_format"),
-            "language_pref":         memory.get("language_pref"),
-            "booking_history":       memory.get("booking_history", [])
+            "language_pref":         memory.get("language_pref")
         }
 
     @tool("recommend_movies_by_preference", args_schema=RecommendMoviesRequest)
@@ -203,7 +202,10 @@ def make_recommendation_tools(user_id: str, memory: dict):
         Use when user asks 'suggest something like before' or 'based on my taste'.
         """
         city = memory.get("city")
-        booking_history = memory.get("booking_history", [])
+        try:
+            booking_history = services.get_user_bookings(user_id) or []
+        except Exception:
+            booking_history = []
 
         if not booking_history:
             raise ToolError(

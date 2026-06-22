@@ -39,34 +39,7 @@ def fetch_and_generate_seat_html(show_id: str, selected_seats_str: str = "") -> 
         logger.error(f"Failed to fetch and generate seat HTML for show_id {show_id}: {e}", exc_info=True)
         return f'<div style="color: #ef4444; padding: 10px; border: 1px dashed #ef4444; border-radius: 8px;">[Seat map currently unavailable for show {show_id}]</div>'
 
-def find_seat_layout_from_history(msg_idx: int, show_id: str) -> tuple[dict, dict] | None:
-    """
-    Scans chat history backwards from msg_idx to find the tool execution output
-    containing seats_dict and seat_types for the specified show_id.
-    """
-    if msg_idx is None or "chat_history" not in st.session_state:
-        return None
-        
-    # Search backwards from the assistant message
-    for i in range(msg_idx - 1, -1, -1):
-        msg = st.session_state.chat_history[i]
-        if msg.get("role") == "tool":
-            content_str = msg.get("content", "")
-            try:
-                data = json.loads(content_str)
-                # Check if this tool message is for this show_id
-                # and contains seats_dict / seat_types snapshot
-                seat_map_tag = data.get("seat_map_tag", "")
-                if f"SEAT_MAP:{show_id}" in seat_map_tag:
-                    seats_dict = data.get("seats_dict")
-                    seat_types = data.get("seat_types")
-                    if seats_dict and seat_types:
-                        return seats_dict, seat_types
-            except Exception:
-                continue
-    return None
-
-def display_assistant_message(content: str, msg_idx: int = None):
+def display_assistant_message(content: str, seat_maps: dict = None):
     """
     Renders assistant message content by separating text blocks and seat map tags,
     rendering text via st.markdown and seat maps via st.html.
@@ -95,14 +68,17 @@ def display_assistant_message(content: str, msg_idx: int = None):
                 show_id, selected_seats_str = inner, ""
                 
             try:
-                # Try to load historical snapshot first
-                historical_layout = find_seat_layout_from_history(msg_idx, show_id)
-                if historical_layout:
-                    seats_dict, seat_types = historical_layout
+                # Retrieve snapshot if available
+                seat_map_snapshot = None
+                if seat_maps and show_id in seat_maps:
+                    seat_map_snapshot = seat_maps[show_id]
+
+                if seat_map_snapshot:
+                    seats_dict = seat_map_snapshot.get("seats", {})
+                    seat_types = seat_map_snapshot.get("seat_types", {})
                     selected_seats = selected_seats_str.split(",") if selected_seats_str else None
                     html_layout = generate_seat_grid_html(seats_dict, seat_types, selected_seats)
                 else:
-                    # Fallback to live API call
                     html_layout = fetch_and_generate_seat_html(show_id, selected_seats_str)
                 st.html(html_layout)
             except Exception as e:
@@ -113,7 +89,6 @@ def display_assistant_message(content: str, msg_idx: int = None):
                 st.markdown(suffix)
         else:
             st.markdown(part + suffix)
-
 
 # Clean solid dark theme CSS styling
 st.markdown("""
@@ -762,16 +737,20 @@ st.markdown('<div class="banner-subtitle">Book tickets, reserve premium seats, q
 chat_container = st.container()
 
 with chat_container:
-    for idx, msg in enumerate(messages):
+    # Filter out empty or raw tool message payloads from the frontend rendering
+    rendered_messages = [
+        m for m in messages 
+        if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
+    ]
+    
+    for msg in rendered_messages:
         role = msg.get("role")
-        content = msg.get("content", "")
-        if role not in ("user", "assistant") or not content.strip():
-            continue
-            
+        content = msg.get("content")
+        
         # Display nicely in Streamlit
         with st.chat_message(role):
             if role == "assistant":
-                display_assistant_message(content, msg_idx=idx)
+                display_assistant_message(content, msg.get("seat_maps"))
                 posters = msg.get("movie_posters")
                 if posters:
                     cards_html = '<div class="movie-poster-panel" style="margin-top: 10px; margin-bottom: 5px;">'
@@ -1092,4 +1071,3 @@ if st.session_state.processing and st.session_state.current_prompt:
                 st.session_state.processing = False
                 st.session_state.current_prompt = None
                 st.rerun()
-

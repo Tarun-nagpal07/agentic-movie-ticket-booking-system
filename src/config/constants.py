@@ -11,6 +11,8 @@ class Intent(str, Enum):
     RECOMMEND_MOVIES    = "recommend_movies"
     SELECT_SEATS        = "select_seats"
     POLICY_QUERY        = "policy_query"
+    VIEW_OFFERS         = "view_offers"
+    APPLY_COUPON        = "apply_coupon"
     ASK_CITY            = "ask_city"        # city missing from memory
     UNKNOWN             = "unknown"
 

@@ -5,6 +5,7 @@ class BookingRequest(BaseModel):
     show_id : str
     seats : list[str]
     num_tickets : int
+    coupon_code: str | None = None
 
     @field_validator('num_tickets')
     def validate_num_tickets(cls, v):

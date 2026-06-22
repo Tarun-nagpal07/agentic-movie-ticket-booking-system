@@ -1,5 +1,4 @@
 import json
-import queue
 import asyncio
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
@@ -10,20 +9,19 @@ from langgraph.types import Command
 from src.api.auth import get_current_user
 from src.utils.rate_limiter import RateLimiter
 from src.db.postgres import get_db_cursor
-from src.graph.graph import get_graph
-from src.utils.logger import get_logger
 from src.api.chat_utils import (
+    get_graph_instance,
     format_messages,
     get_active_interrupt,
     load_messages_from_postgress,
     get_langfuse_callback,
-    QueueCallbackHandler,
-    run_graph_in_thread
+    append_new_messages_to_db,
+    log_token_usage
 )
+from src.utils.logger import get_logger
 
 logger = get_logger("chat_api")
 router = APIRouter()
-graph = get_graph()
 
 
 class ChatRequest(BaseModel):
@@ -42,6 +40,7 @@ class ConfirmRequest(BaseModel):
 async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     try:
         user_id = current_user["user_id"]
+        graph = await get_graph_instance()
         logger.info(f"Chat stream request received: user={user_id}, thread={request.thread_id}, msg='{request.message[:40]}'")
         
         config = {
@@ -56,7 +55,7 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
         }
         
         # Check if Redis checkpointer has existing state
-        snapshot = graph.get_state(config)
+        snapshot = await graph.aget_state(config)
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
@@ -64,14 +63,14 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
                 recent_msgs = db_messages[-15:]
                 from src.memory.long_term import get_user_memory
                 user_memory = get_user_memory(user_id)
-                graph.update_state(config, {
+                await graph.aupdate_state(config, {
                     "messages": recent_msgs,
                     "user_id": user_id,
                     "thread_id": request.thread_id,
                     "memory": user_memory or {}
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages from Supabase")
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
                 
         interrupt_info = get_active_interrupt(snapshot)
         resume_value = request.message if interrupt_info else None
@@ -81,25 +80,85 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
             "user_id": request.user_id,
             "thread_id": request.thread_id
         }
-        
-        q = queue.Queue()
-        q.put({"type": "status", "content": "Initializing Cinemagic graph..."})
-        callbacks = [QueueCallbackHandler(q)]
+
+        # Get pre-invocation message IDs for isolating new messages later
+        old_messages = snapshot.values.get("messages", [])
+        old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
+
+        # Attach Langfuse callback if configured
         langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
         if langfuse_cb:
-            callbacks.append(langfuse_cb)
-        config["callbacks"] = callbacks
-        
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, run_graph_in_thread, inputs, config, q, resume_value)
-        
+            config["callbacks"] = [langfuse_cb]
+
+        # Determine stream input (normal invoke vs interrupt resume)
+        if resume_value is not None:
+            stream_input = Command(resume=resume_value, update=inputs)
+        else:
+            stream_input = inputs
+
         async def event_generator():
-            while True:
-                event = await asyncio.to_thread(q.get)
-                if event is None:
-                    break
-                yield f"data: {json.dumps(event)}\n\n"
-                
+            # Initial status event
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Initializing Cinemagic graph...'})}\n\n"
+
+            try:
+                async for event in graph.astream_events(stream_input, config, version="v2"):
+                    kind = event["event"]
+
+                    if kind == "on_chat_model_start":
+                        metadata = event.get("metadata", {})
+                        node = metadata.get("langgraph_node", "")
+                        if node == "planner":
+                            yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing request intent...'})}\n\n"
+                        else:
+                            checkpoint_ns = metadata.get("checkpoint_ns", "")
+                            agent_name = checkpoint_ns.split(":")[0].replace("_node", "").replace("_", " ").title() if checkpoint_ns else "assistant"
+                            yield f"data: {json.dumps({'type': 'status', 'content': f'Cinemagic {agent_name} formulating response...'})}\n\n"
+
+                    elif kind == "on_chat_model_stream":
+                        metadata = event.get("metadata", {})
+                        node = metadata.get("langgraph_node", "")
+                        # Only stream tokens from non-planner nodes (planner outputs structured JSON)
+                        if node != "planner":
+                            chunk = event["data"].get("chunk")
+                            if chunk and hasattr(chunk, "content") and chunk.content:
+                                yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
+
+                    elif kind == "on_tool_start":
+                        tool_name = event.get("name", "")
+                        nice_name = tool_name.replace("_", " ").title()
+                        yield f"data: {json.dumps({'type': 'status', 'content': f'Retrieving database records ({nice_name})...'})}\n\n"
+
+                # Stream complete — get final state, persist new messages, and send complete event
+                final_snapshot = await graph.aget_state(config)
+                final_interrupt = get_active_interrupt(final_snapshot)
+
+                all_messages = final_snapshot.values.get("messages", [])
+                new_messages = [m for m in all_messages if getattr(m, "id", None) not in old_ids]
+                append_new_messages_to_db(request.user_id, request.thread_id, new_messages)
+                log_token_usage(new_messages, "/chat/stream", user_id, request.thread_id)
+
+                full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
+                formatted_msgs = format_messages(full_messages)
+
+                stream_status = "requires_confirmation" if final_interrupt else "success"
+                movie_posters = final_snapshot.values.get("movie_posters") or []
+
+                complete_event = {
+                    "type": "complete",
+                    "status": stream_status,
+                    "messages": formatted_msgs,
+                    "movie_posters": movie_posters
+                }
+                if final_interrupt:
+                    complete_event["interrupt"] = final_interrupt
+
+                logger.info(f"[HITL-DEBUG] stream finished. interrupt_info={'present: ' + str(final_interrupt.get('message')) if final_interrupt else 'None'}")
+                yield f"data: {json.dumps(complete_event)}\n\n"
+
+            except Exception as e:
+                logger.error(f"Error during stream graph execution: {str(e)}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'message': f'Graph execution failed: {str(e)}'})}\n\n"
+
         return StreamingResponse(event_generator(), media_type="text/event-stream")
         
     except Exception as e:
@@ -114,6 +173,7 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
 async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     try:
         user_id = current_user["user_id"]
+        graph = await get_graph_instance()
         logger.info(f"Chat request received: user={user_id}, thread={request.thread_id}, msg='{request.message[:40]}'")
 
         config = {
@@ -127,7 +187,7 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
             }
         }
 
-        snapshot = graph.get_state(config)
+        snapshot = await graph.aget_state(config)
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
@@ -135,14 +195,14 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
                 recent_msgs = db_messages[-15:]
                 from src.memory.long_term import get_user_memory
                 user_memory = get_user_memory(user_id)
-                graph.update_state(config, {
+                await graph.aupdate_state(config, {
                     "messages": recent_msgs,
                     "user_id": user_id,
                     "thread_id": request.thread_id,
                     "memory": user_memory or {}
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages from Supabase")
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
 
         interrupt_info = get_active_interrupt(snapshot)
 
@@ -160,20 +220,20 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
         old_messages = snapshot.values.get("messages", [])
         old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
 
-        # Invoke the graph (resume if interrupted)
+        # Invoke the graph asynchronously (resume if interrupted)
         if interrupt_info:
             logger.info(f"Resuming active interrupt on chat endpoint with: {request.message}")
-            graph.invoke(Command(resume=request.message, update=inputs), config)
+            await graph.ainvoke(Command(resume=request.message, update=inputs), config)
         else:
-            graph.invoke(inputs, config)
+            await graph.ainvoke(inputs, config)
 
-        new_snapshot = graph.get_state(config)
+        new_snapshot = await graph.aget_state(config)
         interrupt_info = get_active_interrupt(new_snapshot)
 
-        from src.api.chat_utils import append_new_messages_to_db
         all_messages = new_snapshot.values.get("messages", [])
         new_msgs = [m for m in all_messages if getattr(m, "id", None) not in old_ids]
         append_new_messages_to_db(request.user_id, request.thread_id, new_msgs)
+        log_token_usage(new_msgs, "/chat", user_id, request.thread_id)
         
         full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
         formatted_msgs = format_messages(full_messages)
@@ -224,9 +284,10 @@ def get_chat_threads(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/history", dependencies=[Depends(RateLimiter(limit=10, window=10, scope="history"))])
-def get_chat_history(thread_id: str, current_user: dict = Depends(get_current_user)):
+async def get_chat_history(thread_id: str, current_user: dict = Depends(get_current_user)):
     try:
         user_id = current_user["user_id"]
+        graph = await get_graph_instance()
         db_messages = load_messages_from_postgress(user_id, thread_id)
         
         config = {
@@ -235,7 +296,7 @@ def get_chat_history(thread_id: str, current_user: dict = Depends(get_current_us
                 "user_id": user_id
             }
         }
-        snapshot = graph.get_state(config)
+        snapshot = await graph.aget_state(config)
         interrupt_info = get_active_interrupt(snapshot)
         movie_posters = snapshot.values.get("movie_posters") or []
 
@@ -366,6 +427,7 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
     try:
         user_id = current_user["user_id"]
         request.user_id = user_id
+        graph = await get_graph_instance()
         logger.info(f"Confirm request received: user={user_id}, thread={request.thread_id}, decision={request.decision}")
 
         config = {
@@ -379,18 +441,18 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
             }
         }
 
-        snapshot = graph.get_state(config)
+        snapshot = await graph.aget_state(config)
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss on confirm for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
             if db_messages:
-                graph.update_state(config, {
+                await graph.aupdate_state(config, {
                     "messages": db_messages,
                     "user_id": user_id,
                     "thread_id": request.thread_id
                 })
                 logger.info(f"Rehydrated thread {request.thread_id} on confirm from Supabase")
-                snapshot = graph.get_state(config)
+                snapshot = await graph.aget_state(config)
 
         interrupt_info = get_active_interrupt(snapshot)
 
@@ -416,15 +478,15 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
         old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
 
         # Resume graph execution with the decision
-        graph.invoke(Command(resume=request.decision), config)
+        await graph.ainvoke(Command(resume=request.decision), config)
 
-        new_snapshot = graph.get_state(config)
+        new_snapshot = await graph.aget_state(config)
         new_interrupt_info = get_active_interrupt(new_snapshot)
 
-        from src.api.chat_utils import append_new_messages_to_db
         all_messages = new_snapshot.values.get("messages", [])
         new_msgs = [m for m in all_messages if getattr(m, "id", None) not in old_ids]
         append_new_messages_to_db(request.user_id, request.thread_id, new_msgs)
+        log_token_usage(new_msgs, "/chat/confirm", user_id, request.thread_id)
         
         full_messages = load_messages_from_postgress(request.user_id, request.thread_id)
         formatted_msgs = format_messages(full_messages)

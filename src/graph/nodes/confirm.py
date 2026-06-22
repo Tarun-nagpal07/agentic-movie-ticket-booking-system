@@ -39,8 +39,13 @@ def confirm_node(state: dict) -> dict:
             user_id=draft["user_id"],
             show_id=draft["show_id"],
             seats=draft["seats"],
-            booking_id=draft["booking_id"]
+            booking_id=draft["booking_id"],
+            coupon_code=draft.get("coupon_code")
         )
+    except ValueError as ve:
+        logger.error(f"Validation failed to confirm booking {draft.get('booking_id')}: {ve}")
+        err_msg = AIMessage(content=f"❌ **Booking Failed**\n\nSorry, we could not confirm your booking: {str(ve)}")
+        return {"booking_draft": None, "confirmed": False, "messages": [err_msg]}
     except Exception as e:
         logger.error(f"Failed to confirm booking {draft.get('booking_id')}: {e}", exc_info=True)
         err_msg = AIMessage(content="❌ **Booking Failed**\n\nSorry, we could not confirm your booking because one or more seats are no longer available or the showtime is invalid.")

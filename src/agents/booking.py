@@ -12,6 +12,7 @@ from src.tools.seat_tools import (
     get_available_seats,
     recommend_seats
 )
+from src.tools.offer_tools import list_offers
 from src.utils.logger import get_logger
 from src.agents.middleware import trim_messages, extract_new_messages
 from langchain_core.messages import SystemMessage
@@ -69,9 +70,23 @@ Each step REQUIRES output from the step before it. No exceptions.
        → Do NOT call this automatically. Always show seat map first via [4a].
      PRODUCES : seats[] ← only valid input for [5]
  
-[5] book_tickets(show_id, seats[], num_tickets)
+[5] book_tickets(show_id, seats[], num_tickets, coupon_code?)
     REQUIRES : show_id from [3] + seats[] from [4] + explicit user confirmation
     PRODUCES : booking draft → show summary → wait for final confirm
+
+[OFFERS AND DISCOUNTS]
+[6] list_offers(movie_id?, movie_name?, theater_id?, theater_name?)
+    WHEN TO CALL:
+       → Call this if user asks: "are there any offers", "what discounts do you have", "show active coupons", or similar.
+       → You can pass the current movie/theater details to filter applicable offers.
+       → Present the coupons found in a clean bulleted list showing coupon code, description, and status. Remember to NEVER display raw movie/theater IDs.
+
+[APPLYING COUPONS / PROMO CODES]
+- If a user mentions a coupon code (e.g. "Apply coupon FILM100" or "use code PVR50") either during the initial booking or on the draft confirmation summary screen:
+  1. Identify the coupon code from user input.
+  2. Invoke `book_tickets` passing the coupon code into the `coupon_code` parameter.
+  3. If there is already an existing booking draft in "Current booking context", call `book_tickets` with the current show_id, seats, num_tickets, and the new `coupon_code` to update the draft.
+  4. Display the updated draft summary, including original price, discount applied, and the discounted total price, and ask the user to approve/confirm.
  
 VALID SKIP CONDITIONS — only two:
   ✓ Skip [1] only if theater_id is already in "Current booking context"
@@ -100,12 +115,11 @@ Strict rules:
   3. You can show the seats avability by calling get_available_seats , You can call  recommend_seats(if user say any seats or suggest any) or book_tickets with a maximum of 10 seats (e.g., the first 10 seats or a recommendation for 10 seats). NEVER pass more than 10 seats or a num_seats/num_tickets value greater than 10 to any tool.
   4. Once those 10 are drafted, present the booking summary to the user for confirmation. Do NOT try to call booking tools again in a loop within the same turn.
 - After book_tickets returns a draft, tell user the booking summary and await confirmation.
-- Always show: movie title, theater name, screen, date, time, seats, total price.
+- Always show: movie title, theater name, screen, date, time, seats, original price, discount applied (if any), coupon code applied (if any), total price.
 
 [VISUAL SEAT LAYOUT DISPLAY]
 - When showing available seats, recommending seats, or showing seat layouts, the tools will return a key called "seat_map_tag" containing a placeholder tag (e.g., `[SEAT_MAP:show_id]` or `[SEAT_MAP:show_id:seat1,seat2,...]`).
 - You MUST copy and print this "seat_map_tag" placeholder exactly as is in your response text so the user sees a visual grid of seats.
-- DO NOT list, write down, or print the individual available seat IDs (e.g., "A1, A2, A3...", "Row B: B1, B2...") in your final text response to the user. ONLY output the `seat_map_tag` placeholder, and explain that the user can select or view availability from the visual map below. This keeps the response clean and uncluttered.
 """
 
 
@@ -246,7 +260,8 @@ booking_react_agent = create_agent(
         get_showtimes,
         get_available_seats,
         recommend_seats,
-        book_tickets
+        book_tickets,
+        list_offers
     ],
     system_prompt=SYSTEM_PROMPT,
     middleware=[trim_messages],
