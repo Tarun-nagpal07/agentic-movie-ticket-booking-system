@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 from src.config.settings import settings
 from src.config.constants import Limits
 from src.db.postgres import get_db_cursor
-from src.utils.rate_limiter import RateLimiter
+from src.api.rate_limiter import RateLimiter
 from src.api import services
 from src.utils.logger import get_logger
 

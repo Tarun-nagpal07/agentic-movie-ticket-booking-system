@@ -144,24 +144,18 @@ st.markdown("""
     }
     
     /* Simple Dark Chat Messages */
-    [data-testid="stChatMessage"] {
-        background: #1E293B !important;
-        border: 1px solid #334155 !important;
-        border-radius: 12px !important;
-        padding: 1rem 1.25rem !important;
-        margin-bottom: 1rem !important;
-        box-shadow: none !important;
-        transition: border-color 0.15s ease !important;
-    }
-    [data-testid="stChatMessage"]:hover {
-        border-color: #475569 !important;
-    }
     
     /* Custom style for Streamlit Chat Input */
     [data-testid="stChatInput"] {
         background: #1E293B !important;
         border: 1px solid #334155 !important;
         border-radius: 12px !important;
+    }
+    @media (min-width: 1025px) {
+        [data-testid="stChatInput"] {
+            max-width: 68% !important;
+            margin-left: 0 !important;
+        }
     }
     [data-testid="stChatInput"]:focus-within {
         border-color: #334155 !important;
@@ -170,7 +164,6 @@ st.markdown("""
     [data-testid="stChatInput"] textarea {
         color: #F8FAFC !important;
     }
-    
     /* Hide top primary colored decoration line */
     [data-testid="stDecoration"] {
         background: transparent !important;
@@ -178,10 +171,16 @@ st.markdown("""
         display: none !important;
     }
     
+    /* Style the fixed bottom chat container bar to be transparent */
+    [data-testid="stBottom"], [data-testid="stBottom"] > div {
+        background-color: transparent !important;
+        background-image: none !important;
+    }
+    
     /* Simple Error/Warning Alert Card */
     .glass-error-card {
-        background: rgba(239, 68, 68, 0.1);
-        border: 1px solid rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.1) !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
         border-radius: 8px;
         padding: 0.8rem 1.2rem;
         color: #FCA3A3;
@@ -415,6 +414,97 @@ st.markdown("""
         padding: 20px !important;
         background: rgba(30, 41, 59, 0.2) !important;
     }
+
+    /* Fixed & Scrollable Floating Sidebar for Movie Posters */
+    .custom-movie-sidebar {
+        position: fixed !important;
+        right: 4% !important;
+        top: 6rem !important;
+        width: 22% !important;
+        max-height: 80vh !important;
+        overflow-y: auto !important;
+        background: #111827 !important;
+        border: 1px solid #1E293B !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4) !important;
+        z-index: 99 !important;
+    }
+
+    @media (max-width: 1024px) {
+        .custom-movie-sidebar {
+            position: relative !important;
+            right: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            max-height: none !important;
+            margin-top: 20px !important;
+            margin-bottom: 20px !important;
+        }
+    }
+
+    /* Custom Scrollbar for fixed sidebar */
+    .custom-movie-sidebar::-webkit-scrollbar {
+        width: 6px !important;
+    }
+    .custom-movie-sidebar::-webkit-scrollbar-track {
+        background: transparent !important;
+    }
+    .custom-movie-sidebar::-webkit-scrollbar-thumb {
+        background: #334155 !important;
+        border-radius: 3px !important;
+    }
+    .custom-movie-sidebar::-webkit-scrollbar-thumb:hover {
+        background: #475569 !important;
+    }
+
+    .sidebar-trailer-btn:hover {
+        background: #334155 !important;
+        color: #FFFFFF !important;
+        text-decoration: none !important;
+    }
+
+    /* Toggle Details & Summary styles for Trailer */
+    .sidebar-trailer-details {
+        margin-top: 10px;
+        border-radius: 8px;
+        background: #1E293B !important;
+        border: 1px solid #334155 !important;
+        overflow: hidden;
+        transition: background 0.2s;
+    }
+    .sidebar-trailer-details[open] {
+        background: #0F172A !important;
+    }
+    .sidebar-trailer-summary {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #F1F5F9 !important;
+        cursor: pointer;
+        list-style: none; /* Hide default arrow */
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background 0.2s;
+    }
+    .sidebar-trailer-summary::-webkit-details-marker {
+        display: none !important; /* Hide default arrow on Safari */
+    }
+    .sidebar-trailer-summary:hover {
+        background: #334155 !important;
+    }
+    .sidebar-trailer-video {
+        padding: 8px;
+        border-top: 1px solid #334155 !important;
+    }
+    .sidebar-trailer-video iframe {
+        border-radius: 6px;
+        display: block;
+        border: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -491,7 +581,6 @@ if "token" not in st.session_state:
     tab_login, tab_signup = st.tabs(["🔑 Log In", "📝 Sign Up"])
 
     with tab_login:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         login_email = st.text_input("Email", placeholder="e.g. raj.mehta@gmail.com", key="login_email")
         login_password = st.text_input("Password", type="password", placeholder="Password", key="login_password")
         if st.button("Log In", use_container_width=True, type="primary"):
@@ -524,7 +613,6 @@ if "token" not in st.session_state:
         st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_signup:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         signup_name = st.text_input("Full Name", placeholder="e.g. Tarun Nagpal", key="signup_name")
         signup_email = st.text_input("Email Address", placeholder="e.g. tarun@example.com", key="signup_email")
         signup_password = st.text_input("Password (min 6 characters)", type="password", placeholder="Password", key="signup_password")
@@ -635,7 +723,6 @@ else:
 
 # ----------------- SIDEBAR: CONTROLS & SESSION PERSISTENCE -----------------
 with st.sidebar:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown('<div class="glass-header">👤 User Settings</div>', unsafe_allow_html=True)
     st.markdown(f"**Name:** {st.session_state.user_name}")
     st.markdown(f"**Email:** {st.session_state.user_email}")
@@ -1122,11 +1209,19 @@ if st.session_state.processing and st.session_state.current_prompt:
                 st.session_state.current_prompt = None
                 st.rerun()
 
+def get_embed_url(url: str) -> str | None:
+    if not url:
+        return None
+    if "youtube.com/embed/" in url or "youtube-nocookie.com/embed/" in url:
+        return url
+    match = re.search(r"(?:v=|\/v\/|embed\/|youtu\.be\/|\/embed\/|\/watch\?v=|\&v=)([^#\&\?]{11})", url)
+    if match:
+        video_id = match.group(1)
+        return f"https://www.youtube.com/embed/{video_id}"
+    return None
+
 # ----------------- RIGHT SIDEBAR: MOVIE POSTERS -----------------
 with col_sidebar:
-    st.markdown('<div class="sidebar-poster-container">', unsafe_allow_html=True)
-    st.markdown('<div class="glass-header" style="font-size: 1.2rem; margin-bottom: 15px;">🎬 Featured Posters</div>', unsafe_allow_html=True)
-    
     # Resolve the posters to display: latest turn's posters, or search backward for the most recent posters discussed
     posters = st.session_state.get("movie_posters", [])
     if not posters and st.session_state.get("chat_history"):
@@ -1135,34 +1230,62 @@ with col_sidebar:
                 posters = msg.get("movie_posters")
                 break
                 
+    sidebar_html = '<div class="custom-movie-sidebar">'
+    sidebar_html += '<div class="glass-header" style="font-size: 1.2rem; margin-bottom: 15px;">🎬 Featured Posters</div>'
+    
     if posters:
         for p in posters:
             rating_str = f"⭐ {p.get('rating', 'N/A')}" if p.get('rating') else ""
-            st.markdown(f'''
-            <div class="sidebar-poster-card" style="margin-bottom: 6px;">
+            sidebar_html += f'''
+            <div class="sidebar-poster-card" style="margin-bottom: 16px;">
                 <img src="{p["poster_url"]}" alt="{p["title"]}">
                 <div class="sidebar-poster-title" title="{p["title"]}">{p["title"]}</div>
                 <div class="sidebar-poster-meta">
                     <span class="sidebar-poster-rating">{rating_str}</span>
                     <span>{p.get("year", "")}</span>
                 </div>
-            </div>
-            ''', unsafe_allow_html=True)
-            
+            '''
             if p.get("trailer_url"):
-                if "youtube.com/results" in p["trailer_url"]:
-                    st.link_button("🎥 Search Trailer on YouTube", p["trailer_url"], use_container_width=True)
+                embed_url = get_embed_url(p["trailer_url"])
+                if embed_url:
+                    sidebar_html += f'''
+                    <details class="sidebar-trailer-details">
+                        <summary class="sidebar-trailer-summary">🎥 Play Trailer</summary>
+                        <div class="sidebar-trailer-video">
+                            <iframe width="100%" height="180" src="{embed_url}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                        </div>
+                    </details>
+                    '''
                 else:
-                    with st.expander("🎥 Play Trailer"):
-                        st.video(p["trailer_url"])
-                    
-            st.markdown('<div style="margin-bottom: 18px;"></div>', unsafe_allow_html=True)
+                    label = "🎥 Search Trailer on YouTube" if "youtube.com/results" in p["trailer_url"] else "🎥 Watch Trailer"
+                    sidebar_html += f'''
+                    <div style="margin-top: 10px;">
+                        <a href="{p["trailer_url"]}" target="_blank" class="sidebar-trailer-btn" style="
+                            display: block;
+                            text-align: center;
+                            background: #1E293B;
+                            border: 1px solid #334155;
+                            color: #F1F5F9 !important;
+                            padding: 8px 12px;
+                            border-radius: 8px;
+                            text-decoration: none;
+                            font-size: 0.85rem;
+                            font-weight: 500;
+                            transition: background 0.2s;
+                        ">{label}</a>
+                    </div>
+                    '''
+            sidebar_html += '</div>'
     else:
-        st.markdown('''
+        sidebar_html += '''
         <div class="sidebar-placeholder">
             <div style="font-size: 2.5rem; margin-bottom: 10px; opacity: 0.5;">🎬</div>
             <div style="font-weight: 500; font-size: 0.9rem; color: #F1F5F9;">No Active Posters</div>
             <div style="font-size: 0.75rem; margin-top: 5px; opacity: 0.7; color: #94A3B8;">Posters will update automatically as we talk about movies.</div>
         </div>
-        ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        '''
+    
+    sidebar_html += '</div>'
+    # Clean up newlines and extra spaces to prevent markdown parser from mistaking HTML structure for code blocks
+    clean_html = re.sub(r'\s+', ' ', sidebar_html)
+    st.markdown(clean_html, unsafe_allow_html=True)

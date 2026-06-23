@@ -7,7 +7,7 @@ import json
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.db.postgres import get_db_cursor
-from src.api.chat_utils import save_messages_to_postgress, load_messages_from_postgress
+from src.utils.chat_utils import save_messages_to_postgress, load_messages_from_postgress
 from langchain_core.messages import AIMessage
 from src.api import services
 

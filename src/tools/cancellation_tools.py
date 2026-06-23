@@ -10,6 +10,7 @@ from src.schemas.booking import (
 )
 from src.api import services
 from src.db.postgres import get_db_cursor
+from src.tools.booking_tools import _resolve_movie_name_to_id
 
 logger = get_logger(__name__)
 
@@ -208,7 +209,6 @@ def make_cancellation_tools(user_id: str):
         Args:
             movie_name: the name of the movie (e.g., 'Interstellar', 'Pathaan')
         """
-        from src.tools.booking_tools import _resolve_movie_name_to_id
         movie_id = _resolve_movie_name_to_id(movie_name)
         if not movie_id:
             raise ToolError(

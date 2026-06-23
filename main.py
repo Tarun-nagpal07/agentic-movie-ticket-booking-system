@@ -12,7 +12,7 @@ from src.api.users_api import router as users_router
 from src.api.chat_api import router as chat_router
 
 # Backward compatibility exports for scratch / test scripts
-from src.api.chat_utils import load_messages_from_postgress, get_active_interrupt
+from src.utils.chat_utils import load_messages_from_postgress, get_active_interrupt
 
 # Initialize logger
 logger = get_logger("fastapi_app")

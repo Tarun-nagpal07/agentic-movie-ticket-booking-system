@@ -1,5 +1,6 @@
 from src.utils.logger import get_logger
 from src.utils.errors import handle_errors, ToolError,BookingError
+import uuid
 from src.config.constants import SeatStatus
 from src.api import services
 from langchain.tools import tool
@@ -7,6 +8,13 @@ from langchain_core.runnables import RunnableConfig
 from src.utils.date_utils import get_today, get_now, is_show_in_future
 from src.schemas.show import theater_by_city, movies_now_showing, showtimes_request
 from src.schemas.booking import BookingRequest
+from datetime import datetime, timedelta
+from src.utils.id_cleaner import (
+    resolve_theater_id,
+    resolve_movie_id,
+    get_movie_title_by_id,
+    get_theater_name_by_id
+)
 
 logger = get_logger(__name__)
 
@@ -90,7 +98,6 @@ def get_movies_by_theaters(theater_ids: list[str], date: str = None, movie_name:
         movie_name: optional fuzzy movie name to filter results.
     """
     date = date or get_today()
-    from src.utils.id_cleaner import resolve_theater_id
     theater_ids = [resolve_theater_id(tid) for tid in theater_ids if tid]
     movies = services.get_movies()
 
@@ -169,7 +176,6 @@ def get_showtimes(movie_id: str | None = None, theater_id: str = None, date: str
             movie_id = show_details["movie_id"]
             theater_id = show_details["theater_id"]
 
-    from src.utils.id_cleaner import resolve_theater_id, resolve_movie_id
     theater_id = resolve_theater_id(theater_id)
     movie_id = resolve_movie_id(movie_id)
 
@@ -242,7 +248,6 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, coupon_code: 
     movie_id = show["movie_id"]
 
     # Date range validation: bookable dates are today to today + 3 days (inclusive)
-    from datetime import datetime, timedelta
     show_date = show["date"]
     today_str = get_today()
     today_dt = datetime.strptime(today_str, "%Y-%m-%d")
@@ -277,13 +282,11 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, coupon_code: 
         
         # Movie restriction
         if coupon["movie_id"] and coupon["movie_id"] != movie_id:
-            from src.utils.id_cleaner import get_movie_title_by_id
             m_title = get_movie_title_by_id(coupon["movie_id"]) or coupon["movie_id"]
             raise BookingError(message=f"This coupon is only valid for the movie '{m_title}'.", code="COUPON_MOVIE_RESTRICTION", recoverable=True)
         
         # Theater restriction
         if coupon["theater_id"] and coupon["theater_id"] != theater_id:
-            from src.utils.id_cleaner import get_theater_name_by_id
             t_name = get_theater_name_by_id(coupon["theater_id"]) or coupon["theater_id"]
             raise BookingError(message=f"This coupon is only valid at the theater '{t_name}'.", code="COUPON_THEATER_RESTRICTION", recoverable=True)
         
@@ -304,10 +307,9 @@ def book_tickets(show_id: str, seats: list[str], num_tickets: int, coupon_code: 
         actual_coupon_code = coupon["coupon_code"]
 
     # build draft — do NOT write to JSON/DB yet
-    import uuid
     booking_id  = f"b_{uuid.uuid4().hex[:6]}"
 
-    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+
 
     draft = {
         "booking_id":       booking_id,

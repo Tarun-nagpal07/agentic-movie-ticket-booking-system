@@ -4,7 +4,7 @@ from typing import List
 
 from src.api import services
 from src.api.auth import get_current_user
-from src.utils.rate_limiter import RateLimiter
+from src.api.rate_limiter import RateLimiter
 from src.utils.date_utils import hours_until_show
 from src.config.constants import BookingStatus, RefundPolicy
 

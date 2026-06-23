@@ -1,6 +1,7 @@
 from src.graph.state import MemoryAgentState, BookingState
 from src.memory.long_term import get_user_memory, update_user_memory
 from src.utils.logger import get_logger
+from src.api.services import get_movie_by_id
 
 logger = get_logger(__name__)
 
@@ -65,7 +66,6 @@ def memory_write_node(state: MemoryAgentState) -> MemoryAgentState:
 
         # infer movie genres from movie details
         if draft.get("movie_id"):
-            from src.api.services import get_movie_by_id
             movie = get_movie_by_id(draft["movie_id"])
             if movie and movie.get("genre"):
                 updates["favorite_genres"] = movie["genre"]

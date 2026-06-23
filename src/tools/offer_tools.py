@@ -5,7 +5,12 @@ from src.api import services
 from src.utils.logger import get_logger
 from src.utils.errors import handle_errors, ToolError
 from src.tools.booking_tools import _resolve_movie_name_to_id
-from src.utils.id_cleaner import resolve_theater_id, resolve_movie_id
+from src.utils.id_cleaner import (
+    resolve_theater_id,
+    resolve_movie_id,
+    get_movie_title_by_id,
+    get_theater_name_by_id
+)
 
 logger = get_logger(__name__)
 
@@ -87,7 +92,6 @@ def list_offers(
                 continue
 
         # Translate movie_id / theater_id to human readable titles for details
-        from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
         restricted_movie = get_movie_title_by_id(c["movie_id"]) if c["movie_id"] else None
         restricted_theater = get_theater_name_by_id(c["theater_id"]) if c["theater_id"] else None
         

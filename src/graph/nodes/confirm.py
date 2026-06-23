@@ -2,6 +2,9 @@ from langgraph.types import interrupt
 from src.utils.logger import get_logger
 from src.api import services
 from src.utils.date_utils import get_now
+from langchain_core.messages import AIMessage
+from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+from src.utils.confirmation_classifier import classify_confirmation_input
 
 logger = get_logger(__name__)
 
@@ -18,9 +21,7 @@ def confirm_node(state: dict) -> dict:
         "options": ["Approve", "Reject"]
     })
 
-    from langchain_core.messages import AIMessage
-    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
-    from src.utils.confirmation_classifier import classify_confirmation_input
+
 
     resolved_decision = classify_confirmation_input(decision)
 
