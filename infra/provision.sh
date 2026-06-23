@@ -77,6 +77,7 @@ LANGFUSE_PUBLIC_KEY=$(get_env_val "LANGFUSE_PUBLIC_KEY")
 LANGFUSE_SECRET_KEY=$(get_env_val "LANGFUSE_SECRET_KEY")
 BASE_URL=$(get_env_val "BASE_URL")
 GROQ_API_KEY=$(get_env_val "GROQ_API_KEY")
+TMDB_API_KEY=$(get_env_val "TMDB_API_KEY")
 
 info "Starting Azure Resource provisioning via Bicep template..."
 DEPLOYMENT_OUT=$(az deployment group create \
@@ -96,6 +97,7 @@ DEPLOYMENT_OUT=$(az deployment group create \
     langfuseSecretKey="$LANGFUSE_SECRET_KEY" \
     baseUrl="$BASE_URL" \
     groqApiKey="$GROQ_API_KEY" \
+    tmdbApiKey="$TMDB_API_KEY" \
   --query "properties.outputs" \
   --output json)
 
