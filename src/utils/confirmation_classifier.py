@@ -1,4 +1,6 @@
 from src.utils.logger import get_logger
+from src.agents.llm import get_llm
+from src.prompts.confirmation import CLASSIFY_CONFIRMATION_PROMPT
 
 logger = get_logger(__name__)
 
@@ -25,19 +27,8 @@ def classify_confirmation_input(user_input: str) -> str:
         return "Reject"
         
     # Use LLM for conversational matching
-    from src.agents.llm import get_llm
     llm = get_llm()
-    prompt = f"""You are an assistant determining the user's intent on a confirmation screen.
-The user is presented with a booking confirmation and is asked to Approve or Reject it.
-The user's response is: "{user_input}"
-
-Classify their response into exactly one of these categories:
-- Approve: if they are agreeing, saying yes, confirming, or telling the assistant to go ahead.
-- Reject: if they are saying no, rejecting, canceling, or telling the assistant to stop.
-- Query: if they are asking a question, trying to change booking details (like number of tickets, seat type, date, movie, showtime), or speaking about something else.
-
-Respond with ONLY one of the words: "Approve", "Reject", or "Query". Do not include punctuation or other text.
-"""
+    prompt = CLASSIFY_CONFIRMATION_PROMPT.format(user_input=user_input)
     try:
         response = llm.invoke(prompt)
         result = response.content.strip().replace('"', '').replace('.', '')

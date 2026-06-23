@@ -1,4 +1,5 @@
-from langchain_core.messages import AIMessage
+import re
+from datetime import datetime, timedelta
 from src.agents.llm import get_llm
 from src.config.settings import settings
 from src.graph.state import BookingState
@@ -7,6 +8,9 @@ from src.config.constants import Intent
 from src.utils.logger import get_logger
 from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 import json
+from src.utils.date_utils import get_today
+from src.api import services
+from src.prompts.planner import SYSTEM_PROMPT
 
 logger = get_logger(__name__)
 
@@ -24,44 +28,8 @@ INTENT_TO_AGENT = {
     Intent.UNKNOWN:          "unknown",
 }
 
-SYSTEM_PROMPT = """
-You are the intent classifier for a movie ticket booking assistant.
-Your ONLY job is to read the user message and classify the intent.
-Do NOT answer the user. Do NOT call any tools. ONLY return structured output.
-If city is given to you that mean user is in that city , if user given explicitly city, then use that city.
-
-Supported intents:
-- search_movies     : user wants to find movies, theaters, or showtimes in a city
-- get_showtimes     : user wants show timings for a specific movie or theater
-- book_tickets      : user wants to book tickets for a show
-- select_seats      : user wants to choose, can see full seat map or check specific seats,
-- recommend_movies  : user wants movie suggestions based on preferences or history
-- cancel_booking    : user wants to cancel an existing booking
-- get_history       : user wants to see past bookings or spending
-- policy_query      : user asks about cancellation rules, refunds, policies, FAQs
-- view_offers       : user asks if there are any offers, discounts, or available coupons for selected movies/theaters
-- apply_coupon      : user enters a coupon code to apply to a transaction/booking (e.g. FILM100)
-- unknown           : cannot determine intent from message
-
-Rules:
-- if city is not mentioned but user memory has a city → use memory city
-- if movie_title is partial (e.g. "that sci-fi one") → leave it None, agent will ask
-- you can book upto 4 days from now.
-- if movie_title is partial (e.g. "that sci-fi one") → leave it None, agent will ask
-- if date is not mentioned or if user asks for shows "today", "tonight", or "now" → leave the date field as null (None). Do not resolve it to a specific date string yourself.
-- if a specific relative date like "tomorrow", "day after tomorrow", "in 3 days", "in 4 days" or an absolute date is mentioned, extract it normalized (e.g. "tomorrow", "day after tomorrow"). If they misspelled it, extract the closest standard relative date token.
-- always classify to the most specific intent possible
-- "rebook" or "same as last time" → book_tickets intent
-- "what can I watch" or "suggest" → recommend_movies intent
-- "where can I watch X" → search_movies intent
-- "is there any offers", "discount code", "available coupons" -> view_offers intent
-- "apply coupon XYZ", "code FILM100" -> apply_coupon intent
-"""
 
 def resolve_date_string(date_str: str | None) -> str:
-    from src.utils.date_utils import get_today
-    from datetime import datetime, timedelta
-    import re
     
     today_str = get_today()
     if not date_str:
@@ -123,12 +91,9 @@ def planner_node(state: BookingState) -> BookingState:
 
     # Get past bookings count directly from DB to keep state/memory size minimal
     try:
-        from src.api import services
         bookings_count = len(services.get_user_bookings(user_id))
     except Exception:
         bookings_count = 0
-
-    from src.utils.date_utils import get_today
     system_with_context = f"""{SYSTEM_PROMPT}
 
                             Current date: {get_today()}
@@ -235,30 +200,4 @@ def planner_node(state: BookingState) -> BookingState:
         "date":        resolve_date_string(response.date or state.get("date")),
         "redirect_to_planner": None,
     }
-
-    if response.intent == Intent.UNKNOWN or next_agent == "unknown":
-        # Extract the last human message content for context
-        user_message_content = ""
-        for m in reversed(messages):
-            if getattr(m, "type", None) == "human":
-                user_message_content = getattr(m, "content", "")
-                break
-
-        refusal_prompt = f"""You are a helpful, witty, and charismatic GenZ movie ticket booking assistant.
-            The user asked: "{user_message_content}"
-            This request is completely off-topic or irrelevant to movie bookings, showtimes, seats, ticket cancellations, or cinema policies.
-            
-            Deliver a playful, friendly GenZ refusal response:
-            1. Directly reference what they asked in a natural, slightly humorous way so they know you got it, but explain that it's out of your jurisdiction.
-            2. Use relatable GenZ tone and light slang (e.g., 'bestie', 'lowkey', 'no cap', 'valid', 'side-eye', 'cooked', 'staying in my lane') while remaining polite and helpful.
-            3. Smoothly steer them back to movies, showtimes, seats, or ticket bookings.
-            4. Keep it concise, friendly, and high on vibes. Avoid boring corporate robot energy.
-            """
-        llm_streaming = get_llm(structure=False)
-        refusal_response = llm_streaming.invoke(
-            [{"role": "system", "content": refusal_prompt}],
-            config={"tags": ["refusal_response"]}
-        )
-        res["messages"] = [AIMessage(content=refusal_response.content)]
-
     return res

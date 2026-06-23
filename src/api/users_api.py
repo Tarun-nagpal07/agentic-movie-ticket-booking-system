@@ -4,7 +4,8 @@ from typing import List, Optional
 
 from src.api import services
 from src.api.auth import get_current_user
-from src.utils.rate_limiter import RateLimiter
+from src.api.rate_limiter import RateLimiter
+from src.db.seed import get_user_uuid
 
 router = APIRouter()
 
@@ -20,7 +21,6 @@ class PreferencesUpdateRequest(BaseModel):
 @router.get("/{user_id}", dependencies=[rate_limit_dep])
 def get_user_profile(user_id: str, current_user: dict = Depends(get_current_user)):
     # Simple check: map legacy u1/u2/u3 or verify UUID matches
-    from src.db.seed import get_user_uuid
     target_uuid = get_user_uuid(user_id) if not user_id.startswith("00000") and len(user_id) < 10 else user_id
     
     if current_user["user_id"] != target_uuid:
@@ -34,7 +34,6 @@ def get_user_profile(user_id: str, current_user: dict = Depends(get_current_user
 
 @router.put("/{user_id}/preferences", dependencies=[rate_limit_dep])
 def update_user_preferences(user_id: str, request: PreferencesUpdateRequest, current_user: dict = Depends(get_current_user)):
-    from src.db.seed import get_user_uuid
     target_uuid = get_user_uuid(user_id) if not user_id.startswith("00000") and len(user_id) < 10 else user_id
     
     if current_user["user_id"] != target_uuid:

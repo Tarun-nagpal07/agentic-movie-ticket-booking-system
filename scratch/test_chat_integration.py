@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.graph.graph import get_graph
 from src.db.postgres import init_db, get_db_cursor
-from src.api.chat_utils import get_active_interrupt
+from src.utils.chat_utils import get_active_interrupt
 from langgraph.types import Command
 from langchain_core.messages import HumanMessage
 

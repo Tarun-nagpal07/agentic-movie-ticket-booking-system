@@ -1,15 +1,18 @@
 import json
 import asyncio
+import redis
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
+from src.config.settings import settings
+from src.memory.long_term import get_user_memory
 
 from src.api.auth import get_current_user
-from src.utils.rate_limiter import RateLimiter
+from src.api.rate_limiter import RateLimiter
 from src.db.postgres import get_db_cursor
-from src.api.chat_utils import (
+from src.utils.chat_utils import (
     get_graph_instance,
     format_messages,
     get_active_interrupt,
@@ -56,12 +59,12 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
         
         # Check if Redis checkpointer has existing state
         snapshot = await graph.aget_state(config)
+        rehydrated_msgs = None
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
             if db_messages:
                 recent_msgs = db_messages[-15:]
-                from src.memory.long_term import get_user_memory
                 user_memory = get_user_memory(user_id)
                 await graph.aupdate_state(config, {
                     "messages": recent_msgs,
@@ -69,10 +72,11 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
                     "thread_id": request.thread_id,
                     "memory": user_memory or {}
                 })
+                rehydrated_msgs = recent_msgs
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages from Supabase")
-                snapshot = await graph.aget_state(config)
-                
-        interrupt_info = get_active_interrupt(snapshot)
+
+        # After fresh rehydration there are no pending interrupts (no graph execution yet)
+        interrupt_info = None if rehydrated_msgs is not None else get_active_interrupt(snapshot)
         resume_value = request.message if interrupt_info else None
 
         inputs = {
@@ -82,7 +86,7 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
         }
 
         # Get pre-invocation message IDs for isolating new messages later
-        old_messages = snapshot.values.get("messages", [])
+        old_messages = rehydrated_msgs if rehydrated_msgs is not None else snapshot.values.get("messages", [])
         old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
 
         # Attach Langfuse callback if configured
@@ -108,7 +112,7 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
                         metadata = event.get("metadata", {})
                         node = metadata.get("langgraph_node", "")
                         tags = event.get("tags", []) or metadata.get("tags", [])
-                        if node == "planner" and "refusal_response" in tags:
+                        if (node == "planner" or node == "unknown_node") and "refusal_response" in tags:
                             yield f"data: {json.dumps({'type': 'status', 'content': 'Cinemagic assistant formulating response...'})}\n\n"
                         elif node == "planner":
                             yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing request intent...'})}\n\n"
@@ -193,12 +197,12 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
         }
 
         snapshot = await graph.aget_state(config)
+        rehydrated_msgs = None
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
             if db_messages:
                 recent_msgs = db_messages[-15:]
-                from src.memory.long_term import get_user_memory
                 user_memory = get_user_memory(user_id)
                 await graph.aupdate_state(config, {
                     "messages": recent_msgs,
@@ -206,10 +210,11 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
                     "thread_id": request.thread_id,
                     "memory": user_memory or {}
                 })
+                rehydrated_msgs = recent_msgs
                 logger.info(f"Rehydrated thread {request.thread_id} with last {len(recent_msgs)} messages from Supabase")
-                snapshot = await graph.aget_state(config)
 
-        interrupt_info = get_active_interrupt(snapshot)
+        # After fresh rehydration there are no pending interrupts (no graph execution yet)
+        interrupt_info = None if rehydrated_msgs is not None else get_active_interrupt(snapshot)
 
         langfuse_cb = get_langfuse_callback(request.user_id, request.thread_id)
         if langfuse_cb:
@@ -222,7 +227,7 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
         }
 
         # Isolate new messages by getting pre-invocation IDs
-        old_messages = snapshot.values.get("messages", [])
+        old_messages = rehydrated_msgs if rehydrated_msgs is not None else snapshot.values.get("messages", [])
         old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
 
         # Invoke the graph asynchronously (resume if interrupted)
@@ -336,8 +341,6 @@ def delete_chat_thread(thread_id: str, current_user: dict = Depends(get_current_
 
         # 2. Delete checkpointer keys from Redis
         try:
-            import redis
-            from src.config.settings import settings
             r = redis.Redis.from_url(settings.REDIS_URL)
             patterns = [
                 f"checkpoint:{thread_id}:*",
@@ -397,8 +400,6 @@ def rename_chat_thread(old_thread_id: str, new_thread_id: str, current_user: dic
 
         # 2. Delete checkpointer keys for both old and new threads from Redis to be completely clean
         try:
-            import redis
-            from src.config.settings import settings
             r = redis.Redis.from_url(settings.REDIS_URL)
             for tid in [old_thread_id, new_thread_id]:
                 patterns = [
@@ -447,6 +448,7 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
         }
 
         snapshot = await graph.aget_state(config)
+        rehydrated_msgs = None
         if not snapshot.values.get("messages"):
             logger.info(f"Redis cache miss on confirm for thread {request.thread_id} — loading chat history from Supabase")
             db_messages = load_messages_from_postgress(user_id, request.thread_id)
@@ -456,10 +458,11 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
                     "user_id": user_id,
                     "thread_id": request.thread_id
                 })
+                rehydrated_msgs = db_messages
                 logger.info(f"Rehydrated thread {request.thread_id} on confirm from Supabase")
-                snapshot = await graph.aget_state(config)
 
-        interrupt_info = get_active_interrupt(snapshot)
+        # After fresh rehydration there are no pending interrupts (no graph execution yet)
+        interrupt_info = None if rehydrated_msgs is not None else get_active_interrupt(snapshot)
 
         if not interrupt_info:
             logger.warning("No active interrupt found to confirm")
@@ -479,7 +482,7 @@ async def confirm_endpoint(request: ConfirmRequest, current_user: dict = Depends
             config["callbacks"] = [langfuse_cb]
 
         # Isolate new messages by getting pre-invocation IDs
-        old_messages = snapshot.values.get("messages", [])
+        old_messages = rehydrated_msgs if rehydrated_msgs is not None else snapshot.values.get("messages", [])
         old_ids = {getattr(m, "id", None) for m in old_messages if getattr(m, "id", None)}
 
         # Resume graph execution with the decision

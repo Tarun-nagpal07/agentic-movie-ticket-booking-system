@@ -3,6 +3,7 @@ import psycopg2.pool
 from contextlib import contextmanager
 from src.config.settings import settings
 from src.utils.logger import get_logger
+from src.db.seed import seed_database
 
 logger = get_logger(__name__)
 
@@ -295,7 +296,6 @@ def init_db(force: bool = False):
                     should_seed = True
                     
         if should_seed:
-            from src.db.seed import seed_database
             seed_database()
             
     except Exception as e:

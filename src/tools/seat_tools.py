@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from src.utils.logger import get_logger
 from src.schemas.show import get_available_seats_request, recommend_seats_request
 from langchain.tools import tool
@@ -150,7 +151,7 @@ def recommend_seats(
             user_bookings = services.get_user_bookings(user_id)
             confirmed = [b for b in user_bookings if b["status"] == "confirmed"]
             if confirmed:
-                from collections import Counter
+
                 type_counts = Counter()
                 for b in confirmed:
                     st = b.get("seat_type")

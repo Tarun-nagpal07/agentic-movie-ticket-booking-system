@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from src.api import services
-from src.utils.rate_limiter import RateLimiter
+from src.api.rate_limiter import RateLimiter
 
 router = APIRouter()
 

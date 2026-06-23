@@ -1,11 +1,16 @@
 import json
+import re
 from datetime import datetime, timezone
 from langchain_core.messages import HumanMessage, messages_to_dict, messages_from_dict
+from langfuse import Langfuse
+from langfuse.langchain import CallbackHandler
 
 from src.graph.graph import get_graph
 from src.utils.logger import get_logger
 from src.db.postgres import get_db_cursor
 from src.config.settings import settings
+from src.api import services
+
 
 logger = get_logger("chat_utils")
 
@@ -81,8 +86,6 @@ def save_messages_to_postgress(user_id: str, thread_id: str, messages: list):
         return
     try:
         serialized_messages = messages_to_dict(messages)
-        import re
-        from src.api import services
         for msg_dict in serialized_messages:
             if msg_dict.get("type") == "ai":
                 data = msg_dict.setdefault("data", {})
@@ -153,9 +156,6 @@ def get_langfuse_callback(user_id: str, thread_id: str):
     """
     if settings.LANGFUSE_SECRET_KEY and settings.LANGFUSE_PUBLIC_KEY:
         try:
-            from langfuse import Langfuse
-            from langfuse.langchain import CallbackHandler
-            
             # Instantiate Langfuse client to register it under the public key in the global registry
             _ = Langfuse(
                 public_key=settings.LANGFUSE_PUBLIC_KEY,

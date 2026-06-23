@@ -1,12 +1,16 @@
 import os
 import requests
+import urllib.parse
+import re
 from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage
 from src.utils.logger import get_logger
 from src.config.settings import settings
+from src.prompts.poster import EXTRACT_TITLES_PROMPT
 
 logger = get_logger(__name__)
+
 
 class MovieTitleList(BaseModel):
     titles: list[str]
@@ -20,8 +24,19 @@ def _get_poster_llm():
         streaming=False
     ).with_structured_output(MovieTitleList)
 
+_POSTER_CACHE = {}
+
 def _fetch_tmdb(title: str, api_key: str) -> dict | None:
-    """Fetch movie poster and trailer URL from TMDb API."""
+    """Fetch movie poster and trailer URL from TMDb API, utilizing an in-memory cache to avoid duplicate API calls."""
+    if not title:
+        return None
+        
+    normalized_title = title.strip().lower()
+    if normalized_title in _POSTER_CACHE:
+        logger.info(f"Movie poster cache HIT for '{title}'")
+        return _POSTER_CACHE[normalized_title]
+        
+    logger.info(f"Movie poster cache MISS for '{title}' — fetching from TMDb")
     try:
         # Step 1: Search for the movie by title
         search_url = "https://api.themoviedb.org/3/search/movie"
@@ -31,6 +46,8 @@ def _fetch_tmdb(title: str, api_key: str) -> dict | None:
             results = data.get("results", [])
             if not results:
                 logger.warning(f"No TMDb results found for title '{title}'")
+                # Cache None to avoid repeatedly searching for invalid/missing titles
+                _POSTER_CACHE[normalized_title] = None
                 return None
             
             # Take the first matched result
@@ -77,7 +94,7 @@ def _fetch_tmdb(title: str, api_key: str) -> dict | None:
                     trailer_url = _fetch_youtube_trailer_scraping(details.get('title', title))
                 
                 # Return standard dict format
-                return {
+                result = {
                     "title": details.get("title", title),
                     "poster_url": poster_url,
                     "rating": rating,
@@ -85,17 +102,17 @@ def _fetch_tmdb(title: str, api_key: str) -> dict | None:
                     "genre": genre_str,
                     "trailer_url": trailer_url
                 }
+                _POSTER_CACHE[normalized_title] = result
+                return result
     except Exception as e:
         logger.warning(f"TMDb fetch failed for '{title}': {e}")
     return None
 
 def _fetch_youtube_trailer_scraping(title: str) -> str:
     """Fetch the actual YouTube video watch link key-free by searching and parsing results page."""
-    import urllib.parse
     safe_title = urllib.parse.quote_plus(f"{title} official trailer")
     search_url = f"https://www.youtube.com/results?search_query={safe_title}"
     try:
-        import re
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9"
@@ -133,11 +150,7 @@ def poster_node(state: dict) -> dict:
     # Use fast LLM to extract movie title names from the message
     try:
         llm = _get_poster_llm()
-        extraction = llm.invoke(
-            f"Extract ALL movie titles explicitly mentioned in the following text. "
-            f"Return only real movie names that appear in the text, nothing else.\n\n"
-            f"Text: {last_ai.content}"
-        )
+        extraction = llm.invoke(EXTRACT_TITLES_PROMPT.format(text=last_ai.content))
         titles = extraction.titles
     except Exception as e:
         logger.error(f"Poster LLM extraction failed: {e}")

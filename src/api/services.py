@@ -5,6 +5,8 @@ from functools import lru_cache
 from src.db.postgres import get_db_cursor
 from src.config.constants import SeatStatus, BookingStatus
 from src.utils.logger import get_logger
+from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
+from src.db.seed import get_user_uuid
 
 logger = get_logger(__name__)
 
@@ -118,7 +120,6 @@ def booking_row_to_dict(row):
     booked_at_str = row[16].isoformat() if row[16] else ""
     cancelled_at_str = row[17].isoformat() if row[17] else None
     
-    from src.utils.id_cleaner import get_movie_title_by_id, get_theater_name_by_id
     movie_title = get_movie_title_by_id(row[2]) or "Movie"
     theater_name = get_theater_name_by_id(row[3]) or "Theater"
 
@@ -252,7 +253,6 @@ def get_user_by_id(user_id: str, include_bookings: bool = True) -> dict | None:
         # check if valid UUID format, if not try mapping it
         uuid.UUID(user_id)
     except ValueError:
-        from src.db.seed import get_user_uuid
         user_id = get_user_uuid(user_id)
         
     with get_db_cursor() as cur:
@@ -304,7 +304,6 @@ def update_user_preferences(user_id: str, preferences: dict) -> None:
     try:
         uuid.UUID(user_id)
     except ValueError:
-        from src.db.seed import get_user_uuid
         user_id = get_user_uuid(user_id)
 
     # We fetch existing, merge them
@@ -334,7 +333,6 @@ def create_booking(user_id: str, show_id: str, seats: list[str], booking_id: str
     try:
         uuid.UUID(user_id)
     except ValueError:
-        from src.db.seed import get_user_uuid
         user_id = get_user_uuid(user_id)
 
     if not booking_id:
@@ -488,7 +486,6 @@ def get_user_bookings(user_id: str) -> list[dict]:
     try:
         uuid.UUID(user_id)
     except ValueError:
-        from src.db.seed import get_user_uuid
         user_id = get_user_uuid(user_id)
         
     with get_db_cursor() as cur:
@@ -561,7 +558,6 @@ def has_user_used_coupon(user_id: str, coupon_code: str) -> bool:
     try:
         uuid.UUID(user_id)
     except ValueError:
-        from src.db.seed import get_user_uuid
         user_id = get_user_uuid(user_id)
         
     with get_db_cursor() as cur:

@@ -7,7 +7,7 @@ import time
 sys.path.insert(0, "/Users/tarunnagpal/Documents/agentic-movie-ticket-booking-system")
 
 from src.db.postgres import get_db_cursor, init_db
-from src.api.chat_utils import run_graph_in_thread, load_messages_from_postgress
+from src.utils.chat_utils import run_graph_in_thread, load_messages_from_postgress
 from langchain_core.messages import HumanMessage
 
 def test_flow():

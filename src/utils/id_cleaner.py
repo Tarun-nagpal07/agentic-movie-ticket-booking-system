@@ -1,5 +1,7 @@
 import re
+from datetime import datetime
 from src.db.postgres import get_db_cursor
+from src.utils.date_utils import get_today
 
 # Centralized ID format configurations.
 THEATER_ID_PATTERN = r"t\d+"
@@ -275,7 +277,6 @@ def resolve_implicit_theater(city: str | None, movie_id: str | None, date: str |
     if not city or not movie_id:
         return {}
     
-    from src.utils.date_utils import get_today
     date = date or get_today()
     
     try:
@@ -318,7 +319,6 @@ def resolve_implicit_show(theater_id: str | None, movie_id: str | None, date: st
     if not theater_id or not movie_id:
         return None
         
-    from src.utils.date_utils import get_today
     date = date or get_today()
     
     try:
@@ -340,7 +340,6 @@ def resolve_implicit_show(theater_id: str | None, movie_id: str | None, date: st
                 return s["show_id"]
                 
             try:
-                from datetime import datetime
                 t_obj = datetime.strptime(s_time, "%H:%M")
                 hr_12 = t_obj.strftime("%I:%M").lstrip("0").lower() # e.g. "04:00" -> "4:00"
                 hr_12_short = t_obj.strftime("%l").strip() # e.g. "4"

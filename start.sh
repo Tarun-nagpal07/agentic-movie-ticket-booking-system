@@ -330,9 +330,41 @@ success "All database services are connected and healthy ✓"
 
 # ── 3. seed / ingest data ───────────────────────────────────
 header "Step 3 · Data Ingestion (Policy Docs → Qdrant)"
-info "Running ingestion.py${FORCE_SEED:+ with --force flag}..."
-$VENV_PYTHON ingestion.py $FORCE_SEED
-success "Data ingestion complete"
+SKIP_INGESTION=false
+if [[ -z "$FORCE_SEED" ]]; then
+  if SUPABASE_DB_URL="$SUPABASE_DB_URL" QDRANT_URL="$QDRANT_URL" QDRANT_API_KEY="${QDRANT_API_KEY:-$QDRANT_API}" $VENV_PYTHON -c "
+import os, sys, psycopg2
+from qdrant_client import QdrantClient
+try:
+    conn = psycopg2.connect(os.environ['SUPABASE_DB_URL'])
+    cur = conn.cursor()
+    cur.execute('SELECT COUNT(*) FROM users;')
+    user_count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    
+    q_url = os.environ['QDRANT_URL']
+    q_key = os.environ.get('QDRANT_API_KEY')
+    client = QdrantClient(url=q_url, api_key=q_key if q_key else None)
+    qdrant_count = client.count(collection_name='policy_docs').count
+    
+    if user_count > 0 and qdrant_count > 0:
+        sys.exit(0)
+except Exception as e:
+    pass
+sys.exit(1)
+" &>/dev/null; then
+    SKIP_INGESTION=true
+  fi
+fi
+
+if $SKIP_INGESTION; then
+  info "Database and policy data already present. Skipping data ingestion."
+else
+  info "Running ingestion.py${FORCE_SEED:+ with --force flag}..."
+  $VENV_PYTHON ingestion.py $FORCE_SEED
+  success "Data ingestion complete"
+fi
 
 # ── 4. start FastAPI backend ─────────────────────────────────
 header "Step 4 · FastAPI Backend"

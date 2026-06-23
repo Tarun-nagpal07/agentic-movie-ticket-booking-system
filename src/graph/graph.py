@@ -12,6 +12,7 @@ from src.graph.nodes.cancel_confirm import cancel_confirm_node
 from src.graph.router import route_agent
 from src.memory.short_term import get_checkpointer
 from src.agents.poster import poster_node
+from src.agents.unknown import unknown_node
 
 def route_confirm_node(state: dict) -> str:
     if state.get("redirect_to_planner"):
@@ -37,6 +38,7 @@ async def get_graph():
     builder.add_node("cancel_confirm_node", cancel_confirm_node)
     builder.add_node("memory_write", memory_write_node)
     builder.add_node("poster_node", poster_node)
+    builder.add_node("unknown_node", unknown_node)
 
     # Define flow logic
     # Start always goes to memory_read to fetch preferences
@@ -53,7 +55,7 @@ async def get_graph():
             "cancellation_node": "cancellation_node",
             "history_node": "history_node",
             "policy_node": "policy_node",
-            "unknown": END,
+            "unknown": "unknown_node",
         }
     )
 
@@ -102,6 +104,9 @@ async def get_graph():
         }
     )
 
+    # Unknown node goes straight to END
+    builder.add_edge("unknown_node", END)
+
     # After memory write runs, the turn is complete
     builder.add_edge("memory_write", END)
 
@@ -110,4 +115,3 @@ async def get_graph():
     graph = builder.compile(checkpointer=checkpointer, debug=True)
 
     return graph
-

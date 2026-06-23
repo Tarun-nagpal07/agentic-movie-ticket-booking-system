@@ -3,7 +3,8 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 import bcrypt
-from src.db.postgres import get_db_cursor
+import src.db.postgres
+from psycopg2.extras import execute_values
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ def seed_database():
     try:
         policies_data = load_json("policy.json")
         policies = policies_data.get("policies", [])
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE policies CASCADE;")
             for policy in policies:
                 cur.execute("""
@@ -46,7 +47,7 @@ def seed_database():
     try:
         movies_data = load_json("movies.json")
         movies = movies_data.get("movies", [])
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE movies CASCADE;")
             for movie in movies:
                 cur.execute("""
@@ -76,7 +77,7 @@ def seed_database():
             for theater in theaters_list:
                 all_theaters.append(theater)
                 
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE theaters CASCADE;")
             cur.execute("TRUNCATE TABLE screens CASCADE;")
             
@@ -118,7 +119,7 @@ def seed_database():
         
         password_hash = bcrypt.hashpw(b"Test@123", bcrypt.gensalt()).decode("utf-8")
         
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE users CASCADE;")
             
             for user_id_str, user in users_dict.items():
@@ -156,7 +157,7 @@ def seed_database():
                 for show in shows:
                     all_shows.append(show)
                     
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE showtimes CASCADE;")
             cur.execute("TRUNCATE TABLE seats CASCADE;")
             
@@ -186,7 +187,6 @@ def seed_database():
                 seats_dict = show.get("seats", {})
                 if seats_dict:
                     seat_tuples = [(show["show_id"], seat_label, status) for seat_label, status in seats_dict.items()]
-                    from psycopg2.extras import execute_values
                     execute_values(cur, """
                         INSERT INTO seats (show_id, seat_label, status)
                         VALUES %s
@@ -202,7 +202,7 @@ def seed_database():
         bookings_data = load_json("bookings.json")
         bookings_dict = bookings_data.get("bookings", {})
         
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE bookings CASCADE;")
             cur.execute("TRUNCATE TABLE booking_seats CASCADE;")
             
@@ -293,7 +293,7 @@ def seed_database():
 
     # 7. Seed Coupons
     try:
-        with get_db_cursor() as cur:
+        with src.db.postgres.get_db_cursor() as cur:
             cur.execute("TRUNCATE TABLE coupons CASCADE;")
             
             mock_coupons = [
