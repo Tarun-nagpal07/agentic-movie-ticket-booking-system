@@ -26,6 +26,8 @@ param langfuseSecretKey string = ''
 param baseUrl string = ''
 @secure()
 param groqApiKey string = ''
+@secure()
+param tmdbApiKey string = ''
 
 // Container Registry
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -129,6 +131,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'groq-api-key'
           value: groqApiKey
         }
+        {
+          name: 'tmdb-api-key'
+          value: tmdbApiKey
+        }
       ]
       registries: [
         {
@@ -195,6 +201,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'GROQ_API_KEY'
               secretRef: 'groq-api-key'
+            }
+            {
+              name: 'TMDB_API_KEY'
+              secretRef: 'tmdb-api-key'
             }
             {
               name: 'PORT'
