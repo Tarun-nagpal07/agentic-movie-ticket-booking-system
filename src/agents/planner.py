@@ -149,15 +149,27 @@ def planner_node(state: BookingState) -> BookingState:
             role = "user" if msg_type == "human" else "assistant"
             formatted_msgs.append({"role": role, "content": content})
 
-    # Keep only the last 15 messages to fit context window
-    if len(formatted_msgs) > 15:
-        formatted_msgs = formatted_msgs[-15:]
+    # Crop conversation history to 10 limit to conserve context
+    if len(formatted_msgs) > 10:
+        formatted_msgs = formatted_msgs[-10:]
 
     try:
-        response: PlannerResponse = structured_llm.invoke([
-            {"role": "system", "content": system_with_context},
-            *formatted_msgs
-        ])
+        try:
+            response: PlannerResponse = structured_llm.invoke([
+                {"role": "system", "content": system_with_context},
+                *formatted_msgs
+            ])
+        except Exception as exc:
+            err_str = str(exc).lower()
+            if "context" in err_str or "token" in err_str or "limit" in err_str:
+                logger.warning("Planner structured LLM hit context limit. Retrying with last 3 messages...")
+                formatted_msgs = formatted_msgs[-3:] if len(formatted_msgs) > 3 else formatted_msgs
+                response = structured_llm.invoke([
+                    {"role": "system", "content": system_with_context},
+                    *formatted_msgs
+                ])
+            else:
+                raise exc
     except Exception as primary_exc:
         logger.warning(f"Primary planner structured output failed: {primary_exc}. Trying Hugging Face fallback...")
         if not settings.HF_TOKEN:
@@ -242,9 +254,11 @@ def planner_node(state: BookingState) -> BookingState:
             3. Smoothly steer them back to movies, showtimes, seats, or ticket bookings.
             4. Keep it concise, friendly, and high on vibes. Avoid boring corporate robot energy.
             """
-        refusal_response = llm.invoke([
-            {"role": "system", "content": refusal_prompt}
-        ])
+        llm_streaming = get_llm(structure=False)
+        refusal_response = llm_streaming.invoke(
+            [{"role": "system", "content": refusal_prompt}],
+            config={"tags": ["refusal_response"]}
+        )
         res["messages"] = [AIMessage(content=refusal_response.content)]
 
     return res

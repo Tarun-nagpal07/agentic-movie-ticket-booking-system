@@ -20,35 +20,104 @@ def _get_poster_llm():
         streaming=False
     ).with_structured_output(MovieTitleList)
 
-def _fetch_omdb(title: str, api_key: str) -> dict | None:
-    """Fetch OMDB metadata for a single movie title."""
+def _fetch_tmdb(title: str, api_key: str) -> dict | None:
+    """Fetch movie poster and trailer URL from TMDb API."""
     try:
-        res = requests.get(
-            "https://www.omdbapi.com/",
-            params={"t": title, "apikey": api_key},
-            timeout=5
-        )
-        data = res.json()
-        if data.get("Response") == "True" and data.get("Poster", "N/A") != "N/A":
-            return {
-                "title":      data["Title"],
-                "poster_url": data["Poster"],
-                "rating":     data.get("imdbRating", "N/A"),
-                "year":       data.get("Year", ""),
-                "genre":      data.get("Genre", ""),
-            }
+        # Step 1: Search for the movie by title
+        search_url = "https://api.themoviedb.org/3/search/movie"
+        res = requests.get(search_url, params={"api_key": api_key, "query": title}, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            results = data.get("results", [])
+            if not results:
+                logger.warning(f"No TMDb results found for title '{title}'")
+                return None
+            
+            # Take the first matched result
+            movie_id = results[0]["id"]
+            
+            # Step 2: Get movie details and videos (trailers)
+            movie_url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+            details_res = requests.get(movie_url, params={"api_key": api_key, "append_to_response": "videos"}, timeout=5)
+            if details_res.status_code == 200:
+                details = details_res.json()
+                
+                # Construct poster URL
+                poster_path = details.get("poster_path")
+                poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+                
+                # Fetch genres
+                genres_list = [g["name"] for g in details.get("genres", [])]
+                genre_str = ", ".join(genres_list) if genres_list else ""
+                
+                # Parse release year
+                release_date = details.get("release_date", "")
+                year = release_date.split("-")[0] if release_date else ""
+                
+                # Get IMDb/TMDb rating
+                rating = str(round(details.get("vote_average", 0.0), 1))
+                
+                # Find the trailer URL
+                trailer_url = None
+                videos = details.get("videos", {}).get("results", [])
+                
+                # First try to find a YouTube Trailer
+                trailer_videos = [v for v in videos if v.get("site") == "YouTube" and v.get("type") == "Trailer"]
+                # Fallback to Teaser or any other clip if no Trailer
+                if not trailer_videos:
+                    trailer_videos = [v for v in videos if v.get("site") == "YouTube"]
+                    
+                if trailer_videos:
+                    video_key = trailer_videos[0].get("key")
+                    if video_key:
+                        trailer_url = f"https://www.youtube.com/watch?v={video_key}"
+                
+                # If no trailer video was found at all, fall back to dynamic search scraping
+                if not trailer_url:
+                    trailer_url = _fetch_youtube_trailer_scraping(details.get('title', title))
+                
+                # Return standard dict format
+                return {
+                    "title": details.get("title", title),
+                    "poster_url": poster_url,
+                    "rating": rating,
+                    "year": year,
+                    "genre": genre_str,
+                    "trailer_url": trailer_url
+                }
     except Exception as e:
-        logger.warning(f"OMDB fetch failed for '{title}': {e}")
+        logger.warning(f"TMDb fetch failed for '{title}': {e}")
     return None
+
+def _fetch_youtube_trailer_scraping(title: str) -> str:
+    """Fetch the actual YouTube video watch link key-free by searching and parsing results page."""
+    import urllib.parse
+    safe_title = urllib.parse.quote_plus(f"{title} official trailer")
+    search_url = f"https://www.youtube.com/results?search_query={safe_title}"
+    try:
+        import re
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
+        res = requests.get(search_url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            match = re.search(r'"videoId":"([^"]+)"', res.text)
+            if match:
+                return f"https://www.youtube.com/watch?v={match.group(1)}"
+    except Exception as e:
+        logger.warning(f"YouTube search scrape failed for '{title}': {e}")
+    # Return search results page as final fallback
+    return search_url
 
 def poster_node(state: dict) -> dict:
     """
     Extract movie titles from latest AI message via LLM structured output,
-    fetch OMDB posters for each, store in state["movie_posters"].
+    fetch TMDb/OMDB posters & trailers for each, store in state["movie_posters"].
     """
-    api_key = settings.OMDB_API_KEY
-    if not api_key:
-        logger.warning("OMDB_API_KEY not set — poster_node skipped")
+    tmdb_key = settings.TMDB_API_KEY
+    if not tmdb_key:
+        logger.warning("TMDB_API_KEY not set — poster_node skipped")
         return {"movie_posters": []}
 
     # Get the last AI message content
@@ -77,17 +146,18 @@ def poster_node(state: dict) -> dict:
     if not titles:
         return {"movie_posters": []}
 
-    # Fetch OMDB posters (deduplicated)
+    # Fetch posters and trailers (deduplicated)
     seen, posters = set(), []
     for title in titles:
         if title.lower() in seen:
             continue
         seen.add(title.lower())
-        omdb = _fetch_omdb(title, api_key)
-        if omdb:
-            posters.append(omdb)
+        
+        res = _fetch_tmdb(title, tmdb_key)
+        if res:
+            posters.append(res)
 
-    logger.info(f"poster_node: extracted {len(titles)} titles, fetched {len(posters)} posters")
+    logger.info(f"poster_node: extracted {len(titles)} titles, fetched {len(posters)} posters/trailers")
     
     # Update last AI message with the movie posters metadata in-place
     updated_kwargs = dict(last_ai.additional_kwargs or {})

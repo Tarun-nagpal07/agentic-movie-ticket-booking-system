@@ -8,7 +8,7 @@ logger = get_logger("streamlit_app")
 st.set_page_config(
     page_title="Cinemagic — Agentic Booking Portal",
     page_icon="🎬",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -353,6 +353,67 @@ st.markdown("""
     .poster-rating {
         color: #FBBF24;
         font-weight: 600;
+    }
+
+    /* Sidebar poster styling */
+    .sidebar-poster-container {
+        background: #111827 !important;
+        border: 1px solid #1E293B !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(5px) !important;
+    }
+    .sidebar-poster-card {
+        background: #1E293B !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
+        padding: 12px !important;
+        margin-bottom: 16px !important;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    .sidebar-poster-card:hover {
+        transform: translateY(-4px) !important;
+        border-color: #475569 !important;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
+    }
+    .sidebar-poster-card img {
+        width: 100% !important;
+        border-radius: 8px !important;
+        object-fit: cover !important;
+        max-height: 280px !important;
+        margin-bottom: 8px !important;
+    }
+    .sidebar-poster-title {
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        color: #F1F5F9 !important;
+        margin-bottom: 4px !important;
+        line-height: 1.25 !important;
+    }
+    .sidebar-poster-meta {
+        font-size: 0.8rem !important;
+        color: #94A3B8 !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+    }
+    .sidebar-poster-rating {
+        color: #FBBF24 !important;
+        font-weight: 600 !important;
+    }
+    .sidebar-placeholder {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 250px !important;
+        color: #94A3B8 !important;
+        text-align: center !important;
+        border: 1.5px dashed #334155 !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        background: rgba(30, 41, 59, 0.2) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -729,168 +790,157 @@ with st.sidebar:
 
 
 
-# ----------------- MAIN LAYOUT: CHAT INTERFACE -----------------
-st.markdown('<div class="banner-title">Cinemagic Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="banner-subtitle">Book tickets, reserve premium seats, query refund policies, or manage cancellations.</div>', unsafe_allow_html=True)
+# ----------------- MAIN LAYOUT: CHAT & SIDEBAR INTERFACE -----------------
+col_chat, col_sidebar = st.columns([7, 3], gap="medium")
 
-# Render Chat History
-chat_container = st.container()
+with col_chat:
+    st.markdown('<div class="banner-title">Cinemagic Assistant</div>', unsafe_allow_html=True)
+    st.markdown('<div class="banner-subtitle">Book tickets, reserve premium seats, query refund policies, or manage cancellations.</div>', unsafe_allow_html=True)
 
-with chat_container:
-    # Filter out empty or raw tool message payloads from the frontend rendering
-    rendered_messages = [
-        m for m in messages 
-        if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
-    ]
-    
-    for msg in rendered_messages:
-        role = msg.get("role")
-        content = msg.get("content")
+    # Render Chat History
+    chat_container = st.container()
+
+    with chat_container:
+        # Filter out empty or raw tool message payloads from the frontend rendering
+        rendered_messages = [
+            m for m in messages 
+            if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
+        ]
         
-        # Display nicely in Streamlit
-        with st.chat_message(role):
-            if role == "assistant":
-                display_assistant_message(content, msg.get("seat_maps"))
-                posters = msg.get("movie_posters")
-                if posters:
-                    cards_html = '<div class="movie-poster-panel" style="margin-top: 10px; margin-bottom: 5px;">'
-                    for p in posters:
-                        rating_str = f"⭐ {p.get('rating', 'N/A')}" if p.get('rating') else ""
-                        cards_html += f'''
-                        <div class="poster-card">
-                            <img src="{p["poster_url"]}" alt="{p["title"]}">
-                            <div class="poster-title" title="{p["title"]}">{p["title"]}</div>
-                            <div class="poster-meta">
-                                <span class="poster-rating">{rating_str}</span>
-                                <span>{p.get("year", "")}</span>
-                            </div>
-                        </div>'''
-                    cards_html += '</div>'
-                    st.markdown(cards_html, unsafe_allow_html=True)
-            else:
-                st.markdown(content)
+        for msg in rendered_messages:
+            role = msg.get("role")
+            content = msg.get("content")
+            
+            # Display nicely in Streamlit
+            with st.chat_message(role):
+                if role == "assistant":
+                    display_assistant_message(content, msg.get("seat_maps"))
+                    # Movie posters are now rendered in the right sidebar (col_sidebar)
+                else:
+                    st.markdown(content)
 
 # Render Interrupt Block if human-in-the-loop action is required
 if is_interrupted and interrupt_payload:
-    st.markdown('<div class="confirmation-box">', unsafe_allow_html=True)
-    st.markdown(f"### 🛡️ Actions Required: {interrupt_payload.get('message')}")
-    
-    draft_data = interrupt_payload.get("data", {})
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if "booking_id" in draft_data and "refund_amount" not in draft_data:
-            # Booking confirmation view
-            st.markdown(f"""
-            **📋 Booking Details:**
-            - **Booking ID:** `{draft_data.get('booking_id')}`
-            - **Movie Title:** {draft_data.get('movie_title', 'Unknown')}
-            - **Theater:** {draft_data.get('theater_name', 'Unknown')}
-            - **Showtime:** {draft_data.get('show_date')} at {draft_data.get('show_time')}
-            - **Format/Screen:** {draft_data.get('format')} | {draft_data.get('screen_name', 'Standard')}
-            """)
-        elif "refund_amount" in draft_data:
-            # Cancellation confirmation view
-            st.markdown(f"""
-            **📋 Cancellation Refund Details:**
-            - **Booking ID to Cancel:** `{draft_data.get('booking_id')}`
-            - **Refund Eligibility:** `{draft_data.get('refund_message')}`
-            - **Show Date/Time:** {draft_data.get('show_date')} at {draft_data.get('show_time')}
-            """)
-            
-    with col2:
-        if "booking_id" in draft_data and "refund_amount" not in draft_data:
-            st.markdown(f"""
-            **💰 Summary:**
-            - **Selected Seats:** {', '.join(draft_data.get('seats', []))}
-            - **Total Tickets:** {draft_data.get('num_tickets')}
-            - **Total Amount Payable:** **₹{draft_data.get('total_price')}**
-            """)
-        elif "refund_amount" in draft_data:
-            st.markdown(f"""
-            **💰 Refund Summary:**
-            - **Original Booking Price:** ₹{draft_data.get('total_price')}
-            - **Refund Percentage:** {int(draft_data.get('refund_percentage', 0) * 100)}%
-            - **Refund Amount Payable:** **₹{draft_data.get('refund_amount')}**
-            """)
-            
-    # HITL Buttons
-    btn_col1, btn_col2, _ = st.columns([1, 1, 3])
-    with btn_col1:
-        if st.button("✅ Approve", key="hitl_approve", use_container_width=True, type="primary"):
-            try:
-                token = st.session_state.get("token")
-                headers = {"Authorization": f"Bearer {token}"} if token else {}
-                res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
-                    "user_id": st.session_state.user_id,
-                    "thread_id": st.session_state.thread_id,
-                    "decision": "Approve"
-                }, headers=headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    st.session_state.chat_history = data.get("messages", [])
-                    st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
-                    st.session_state.interrupt_payload = data.get("interrupt")
-                    st.session_state.movie_posters = data.get("movie_posters", [])
-                    st.success("Approved successfully!")
-                    st.rerun()
-                elif res.status_code == 429:
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Approve again."
-                    })
-                    st.rerun()
-                else:
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": f"I encountered an issue confirming the booking on the server: {res.text}. Please try again."
-                    })
-                    st.rerun()
-            except Exception as e:
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": f"I am unable to connect to the backend server to confirm your booking: {str(e)}. Please try again."
-                })
-                st.rerun()
+    with col_chat:
+        st.markdown('<div class="confirmation-box">', unsafe_allow_html=True)
+        st.markdown(f"### 🛡️ Actions Required: {interrupt_payload.get('message')}")
+        
+        draft_data = interrupt_payload.get("data", {})
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if "booking_id" in draft_data and "refund_amount" not in draft_data:
+                # Booking confirmation view
+                st.markdown(f"""
+                **📋 Booking Details:**
+                - **Booking ID:** `{draft_data.get('booking_id')}`
+                - **Movie Title:** {draft_data.get('movie_title', 'Unknown')}
+                - **Theater:** {draft_data.get('theater_name', 'Unknown')}
+                - **Showtime:** {draft_data.get('show_date')} at {draft_data.get('show_time')}
+                - **Format/Screen:** {draft_data.get('format')} | {draft_data.get('screen_name', 'Standard')}
+                """)
+            elif "refund_amount" in draft_data:
+                # Cancellation confirmation view
+                st.markdown(f"""
+                **📋 Cancellation Refund Details:**
+                - **Booking ID to Cancel:** `{draft_data.get('booking_id')}`
+                - **Refund Eligibility:** `{draft_data.get('refund_message')}`
+                - **Show Date/Time:** {draft_data.get('show_date')} at {draft_data.get('show_time')}
+                """)
                 
-    with btn_col2:
-        if st.button("❌ Reject", key="hitl_reject", use_container_width=True):
-            try:
-                token = st.session_state.get("token")
-                headers = {"Authorization": f"Bearer {token}"} if token else {}
-                res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
-                    "user_id": st.session_state.user_id,
-                    "thread_id": st.session_state.thread_id,
-                    "decision": "Reject"
-                }, headers=headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    st.session_state.chat_history = data.get("messages", [])
-                    st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
-                    st.session_state.interrupt_payload = data.get("interrupt")
-                    st.session_state.movie_posters = data.get("movie_posters", [])
-                    st.warning("Rejected/Cancelled draft booking.")
-                    st.rerun()
-                elif res.status_code == 429:
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Reject again."
-                    })
-                    st.rerun()
-                else:
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": f"I encountered an issue rejecting the draft booking: {res.text}. Please try again."
-                    })
-                    st.rerun()
-            except Exception as e:
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": f"I am unable to connect to the backend server to reject the booking: {str(e)}. Please try again."
-                })
-                st.rerun()
+        with col2:
+            if "booking_id" in draft_data and "refund_amount" not in draft_data:
+                st.markdown(f"""
+                **💰 Summary:**
+                - **Selected Seats:** {', '.join(draft_data.get('seats', []))}
+                - **Total Tickets:** {draft_data.get('num_tickets')}
+                - **Total Amount Payable:** **₹{draft_data.get('total_price')}**
+                """)
+            elif "refund_amount" in draft_data:
+                st.markdown(f"""
+                **💰 Refund Summary:**
+                - **Original Booking Price:** ₹{draft_data.get('total_price')}
+                - **Refund Percentage:** {int(draft_data.get('refund_percentage', 0) * 100)}%
+                - **Refund Amount Payable:** **₹{draft_data.get('refund_amount')}**
+                """)
                 
-    st.markdown('</div>', unsafe_allow_html=True)
+        # HITL Buttons
+        btn_col1, btn_col2, _ = st.columns([1, 1, 3])
+        with btn_col1:
+            if st.button("✅ Approve", key="hitl_approve", use_container_width=True, type="primary"):
+                try:
+                    token = st.session_state.get("token")
+                    headers = {"Authorization": f"Bearer {token}"} if token else {}
+                    res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
+                        "user_id": st.session_state.user_id,
+                        "thread_id": st.session_state.thread_id,
+                        "decision": "Approve"
+                    }, headers=headers)
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.session_state.chat_history = data.get("messages", [])
+                        st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
+                        st.session_state.interrupt_payload = data.get("interrupt")
+                        st.session_state.movie_posters = data.get("movie_posters", [])
+                        st.success("Approved successfully!")
+                        st.rerun()
+                    elif res.status_code == 429:
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Approve again."
+                        })
+                        st.rerun()
+                    else:
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": f"I encountered an issue confirming the booking on the server: {res.text}. Please try again."
+                        })
+                        st.rerun()
+                except Exception as e:
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I am unable to connect to the backend server to confirm your booking: {str(e)}. Please try again."
+                    })
+                    st.rerun()
+                    
+        with btn_col2:
+            if st.button("❌ Reject", key="hitl_reject", use_container_width=True):
+                try:
+                    token = st.session_state.get("token")
+                    headers = {"Authorization": f"Bearer {token}"} if token else {}
+                    res = requests.post(f"{API_BASE_URL}/chat/confirm", json={
+                        "user_id": st.session_state.user_id,
+                        "thread_id": st.session_state.thread_id,
+                        "decision": "Reject"
+                    }, headers=headers)
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.session_state.chat_history = data.get("messages", [])
+                        st.session_state.is_interrupted = data.get("status") == "requires_confirmation"
+                        st.session_state.interrupt_payload = data.get("interrupt")
+                        st.session_state.movie_posters = data.get("movie_posters", [])
+                        st.warning("Rejected/Cancelled draft booking.")
+                        st.rerun()
+                    elif res.status_code == 429:
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": "I'm sorry, I'm receiving too many requests right now. Please wait a few seconds and try clicking Reject again."
+                        })
+                        st.rerun()
+                    else:
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": f"I encountered an issue rejecting the draft booking: {res.text}. Please try again."
+                        })
+                        st.rerun()
+                except Exception as e:
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": f"I am unable to connect to the backend server to reject the booking: {str(e)}. Please try again."
+                    })
+                    st.rerun()
+                    
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def cancel_execution_callback():
     st.session_state.processing = False
@@ -1071,3 +1121,48 @@ if st.session_state.processing and st.session_state.current_prompt:
                 st.session_state.processing = False
                 st.session_state.current_prompt = None
                 st.rerun()
+
+# ----------------- RIGHT SIDEBAR: MOVIE POSTERS -----------------
+with col_sidebar:
+    st.markdown('<div class="sidebar-poster-container">', unsafe_allow_html=True)
+    st.markdown('<div class="glass-header" style="font-size: 1.2rem; margin-bottom: 15px;">🎬 Featured Posters</div>', unsafe_allow_html=True)
+    
+    # Resolve the posters to display: latest turn's posters, or search backward for the most recent posters discussed
+    posters = st.session_state.get("movie_posters", [])
+    if not posters and st.session_state.get("chat_history"):
+        for msg in reversed(st.session_state.chat_history):
+            if msg.get("role") == "assistant" and msg.get("movie_posters"):
+                posters = msg.get("movie_posters")
+                break
+                
+    if posters:
+        for p in posters:
+            rating_str = f"⭐ {p.get('rating', 'N/A')}" if p.get('rating') else ""
+            st.markdown(f'''
+            <div class="sidebar-poster-card" style="margin-bottom: 6px;">
+                <img src="{p["poster_url"]}" alt="{p["title"]}">
+                <div class="sidebar-poster-title" title="{p["title"]}">{p["title"]}</div>
+                <div class="sidebar-poster-meta">
+                    <span class="sidebar-poster-rating">{rating_str}</span>
+                    <span>{p.get("year", "")}</span>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+            if p.get("trailer_url"):
+                if "youtube.com/results" in p["trailer_url"]:
+                    st.link_button("🎥 Search Trailer on YouTube", p["trailer_url"], use_container_width=True)
+                else:
+                    with st.expander("🎥 Play Trailer"):
+                        st.video(p["trailer_url"])
+                    
+            st.markdown('<div style="margin-bottom: 18px;"></div>', unsafe_allow_html=True)
+    else:
+        st.markdown('''
+        <div class="sidebar-placeholder">
+            <div style="font-size: 2.5rem; margin-bottom: 10px; opacity: 0.5;">🎬</div>
+            <div style="font-weight: 500; font-size: 0.9rem; color: #F1F5F9;">No Active Posters</div>
+            <div style="font-size: 0.75rem; margin-top: 5px; opacity: 0.7; color: #94A3B8;">Posters will update automatically as we talk about movies.</div>
+        </div>
+        ''', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)

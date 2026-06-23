@@ -107,7 +107,10 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
                     if kind == "on_chat_model_start":
                         metadata = event.get("metadata", {})
                         node = metadata.get("langgraph_node", "")
-                        if node == "planner":
+                        tags = event.get("tags", []) or metadata.get("tags", [])
+                        if node == "planner" and "refusal_response" in tags:
+                            yield f"data: {json.dumps({'type': 'status', 'content': 'Cinemagic assistant formulating response...'})}\n\n"
+                        elif node == "planner":
                             yield f"data: {json.dumps({'type': 'status', 'content': 'Analyzing request intent...'})}\n\n"
                         else:
                             checkpoint_ns = metadata.get("checkpoint_ns", "")
@@ -117,8 +120,10 @@ async def chat_stream_endpoint(request: ChatRequest, current_user: dict = Depend
                     elif kind == "on_chat_model_stream":
                         metadata = event.get("metadata", {})
                         node = metadata.get("langgraph_node", "")
+                        tags = event.get("tags", []) or metadata.get("tags", [])
                         # Only stream tokens from non-planner nodes (planner outputs structured JSON)
-                        if node != "planner":
+                        # OR if it's the refusal response from the planner
+                        if node != "planner" or "refusal_response" in tags:
                             chunk = event["data"].get("chunk")
                             if chunk and hasattr(chunk, "content") and chunk.content:
                                 yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
