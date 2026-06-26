@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_REGISTRY: cinemagicregistryqzcyeyuaun5sa.azurecr.io
-  ACR_USERNAME: cinemagicregistryqzcyeyuaun5sa
+  AZURE_REGISTRY: cinemagicregistryoybt2sxqu5la4.azurecr.io
+  ACR_USERNAME: cinemagicregistryoybt2sxqu5la4
   RESOURCE_GROUP: cinemagic-rg
   CONTAINER_APP: cinemagic-app
 
